@@ -1,0 +1,43 @@
+# ── Data ──
+data:
+  data_dir: "CheXpert-v1.0-small"
+  train_csv: "CheXpert-v1.0-small/train.csv"
+  valid_csv: "CheXpert-v1.0-small/valid.csv"
+  image_size: 320
+  frontal_only: true
+  uncertainty_strategy: "u-ones"  # "u-ones", "u-zeros", "u-ignore"
+
+# ── Labels ──
+labels:
+  # The 5 competition pathologies (used in CheXpert leaderboard)
+  target_labels:
+    - "Cardiomegaly"
+    - "Edema"
+    - "Consolidation"
+    - "Atelectasis"
+    - "Pleural Effusion"
+
+# ── Model ──
+model:
+  architecture: "densenet121"  # "densenet121", "resnet50"
+  pretrained: true
+  num_classes: 5
+
+# ── Training ──
+training:
+  batch_size: 32
+  num_workers: 4
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  scheduler: "cosine"  # "cosine", "step", "none"
+  early_stopping_patience: 3
+
+# ── Device ──
+device: "auto"  # "auto", "mps", "cuda", "cpu"
+
+# ── Logging ──
+logging:
+  checkpoint_dir: "checkpoints"
+  log_dir: "runs"
+  save_best_only: true

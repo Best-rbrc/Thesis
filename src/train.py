@@ -1,0 +1,178 @@
+"""Training loop for CheXpert multi-label classification."""
+
+import argparse
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
+from src.dataset import build_dataloaders
+from src.model import build_model
+from src.utils import compute_aurocs, get_device, load_config, save_checkpoint
+
+
+def train_one_epoch(
+    model: nn.Module,
+    loader,
+    criterion: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+) -> float:
+    """Run one training epoch. Returns the mean loss."""
+    model.train()
+    running_loss = 0.0
+
+    for images, labels in tqdm(loader, desc="  train", leave=False):
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
+
+        optimizer.zero_grad()
+        logits = model(images)
+        loss = criterion(logits, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * images.size(0)
+
+    return running_loss / len(loader.dataset)
+
+
+@torch.no_grad()
+def validate(
+    model: nn.Module,
+    loader,
+    criterion: nn.Module,
+    device: torch.device,
+    label_names: list[str],
+) -> tuple[float, dict[str, float]]:
+    """Run validation. Returns (mean_loss, per-label AUROCs)."""
+    model.eval()
+    running_loss = 0.0
+    all_preds = []
+    all_labels = []
+
+    for images, labels in tqdm(loader, desc="  valid", leave=False):
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
+
+        logits = model(images)
+        loss = criterion(logits, labels)
+        running_loss += loss.item() * images.size(0)
+
+        probs = torch.sigmoid(logits)
+        all_preds.append(probs.cpu().numpy())
+        all_labels.append(labels.cpu().numpy())
+
+    val_loss = running_loss / len(loader.dataset)
+    all_preds = np.concatenate(all_preds)
+    all_labels = np.concatenate(all_labels)
+
+    aurocs = compute_aurocs(all_labels, all_preds, label_names)
+    return val_loss, aurocs
+
+
+def train(config_path: str = "configs/train_config.yaml") -> None:
+    """Full training pipeline."""
+    cfg = load_config(config_path)
+    device = get_device(cfg)
+    print(f"Using device: {device}")
+
+    # ── Data ──
+    train_loader, valid_loader = build_dataloaders(cfg)
+    print(
+        f"Train samples: {len(train_loader.dataset):,}  |  "
+        f"Valid samples: {len(valid_loader.dataset):,}"
+    )
+
+    # ── Model ──
+    model = build_model(cfg).to(device)
+    target_labels = cfg["labels"]["target_labels"]
+
+    # ── Optimiser & scheduler ──
+    train_cfg = cfg["training"]
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=train_cfg["learning_rate"],
+        weight_decay=train_cfg["weight_decay"],
+    )
+
+    scheduler = None
+    if train_cfg["scheduler"] == "cosine":
+        scheduler = CosineAnnealingLR(optimizer, T_max=train_cfg["epochs"])
+
+    criterion = nn.BCEWithLogitsLoss()
+
+    # ── Logging ──
+    log_cfg = cfg["logging"]
+    writer = SummaryWriter(log_dir=log_cfg["log_dir"])
+    best_auroc = 0.0
+    patience_counter = 0
+
+    # ── Training loop ──
+    for epoch in range(1, train_cfg["epochs"] + 1):
+        t0 = time.time()
+        print(f"\nEpoch {epoch}/{train_cfg['epochs']}")
+
+        train_loss = train_one_epoch(
+            model, train_loader, criterion, optimizer, device
+        )
+        val_loss, aurocs = validate(
+            model, valid_loader, criterion, device, target_labels
+        )
+
+        if scheduler:
+            scheduler.step()
+
+        mean_auroc = np.nanmean(list(aurocs.values()))
+        elapsed = time.time() - t0
+
+        # ── Print & log ──
+        print(f"  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
+              f"mean_AUROC={mean_auroc:.4f}  ({elapsed:.1f}s)")
+        for label, auc in aurocs.items():
+            print(f"    {label}: {auc:.4f}")
+
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Loss/valid", val_loss, epoch)
+        writer.add_scalar("AUROC/mean", mean_auroc, epoch)
+        for label, auc in aurocs.items():
+            writer.add_scalar(f"AUROC/{label}", auc, epoch)
+
+        # ── Checkpointing ──
+        if mean_auroc > best_auroc:
+            best_auroc = mean_auroc
+            patience_counter = 0
+            save_checkpoint(
+                model,
+                optimizer,
+                epoch,
+                mean_auroc,
+                os.path.join(log_cfg["checkpoint_dir"], "best_model.pt"),
+            )
+            print(f"  ✓ New best model (AUROC={mean_auroc:.4f})")
+        else:
+            patience_counter += 1
+            if patience_counter >= train_cfg["early_stopping_patience"]:
+                print(f"  Early stopping after {epoch} epochs.")
+                break
+
+    writer.close()
+    print(f"\nTraining complete. Best mean AUROC: {best_auroc:.4f}")
+
+
+if __name__ == "__main__":
+    import os
+
+    parser = argparse.ArgumentParser(description="Train CheXpert classifier")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="configs/train_config.yaml",
+        help="Path to YAML config file",
+    )
+    args = parser.parse_args()
+    train(args.config)

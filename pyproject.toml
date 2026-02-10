@@ -1,0 +1,17 @@
+[project]
+name = "chexpert-thesis"
+version = "0.1.0"
+description = "Bachelor thesis – CheXpert chest X-ray classification"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "pandas>=3.0.0",
+    "pillow>=12.1.0",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.8.0",
+    "tensorboard>=2.20.0",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+    "tqdm>=4.67.3",
+]
