@@ -5,6 +5,7 @@ description = "Bachelor thesis – CheXpert chest X-ray classification"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "pypdf>=5.0.0",
     "matplotlib>=3.10.8",
     "pandas>=3.0.0",
     "pillow>=12.1.0",
