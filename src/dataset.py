@@ -157,11 +157,14 @@ def get_valid_transforms(image_size: int = 320) -> transforms.Compose:
 
 def build_dataloaders(
     cfg: dict,
+    *,
+    pin_memory: bool = True,
 ) -> tuple[DataLoader, DataLoader]:
     """Build train and validation DataLoaders from a config dict.
 
     Args:
         cfg: Parsed YAML config (see configs/train_config.yaml).
+        pin_memory: Set False on MPS to avoid warning; True on CUDA for speed.
 
     Returns:
         (train_loader, valid_loader)
@@ -191,21 +194,25 @@ def build_dataloaders(
         uncertainty_strategy="u-ones",  # valid set has no -1, but be safe
     )
 
+    nw = train_cfg["num_workers"]
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=train_cfg["batch_size"],
         shuffle=True,
-        num_workers=train_cfg["num_workers"],
-        pin_memory=True,
+        num_workers=nw,
+        pin_memory=pin_memory,
         drop_last=True,
+        persistent_workers=nw > 0,
     )
 
     valid_loader = DataLoader(
         valid_dataset,
         batch_size=train_cfg["batch_size"],
         shuffle=False,
-        num_workers=train_cfg["num_workers"],
-        pin_memory=True,
+        num_workers=nw,
+        pin_memory=pin_memory,
+        persistent_workers=nw > 0,
     )
 
     return train_loader, valid_loader

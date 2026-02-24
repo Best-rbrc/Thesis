@@ -61,15 +61,23 @@ def save_checkpoint(
     epoch: int,
     auroc: float,
     path: str,
+    *,
+    scheduler=None,
+    best_auroc: float | None = None,
+    patience_counter: int | None = None,
 ) -> None:
-    """Save a training checkpoint."""
+    """Save a training checkpoint (enough state to resume later)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "auroc": auroc,
-        },
-        path,
-    )
+    payload = {
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "auroc": auroc,
+    }
+    if scheduler is not None:
+        payload["scheduler_state_dict"] = scheduler.state_dict()
+    if best_auroc is not None:
+        payload["best_auroc"] = best_auroc
+    if patience_counter is not None:
+        payload["patience_counter"] = patience_counter
+    torch.save(payload, path)

@@ -75,14 +75,18 @@ def validate(
     return val_loss, aurocs
 
 
-def train(config_path: str = "configs/train_config.yaml") -> None:
-    """Full training pipeline."""
+def train(
+    config_path: str = "configs/train_config.yaml",
+    resume: bool = False,
+) -> None:
+    """Full training pipeline with automatic resume support."""
     cfg = load_config(config_path)
     device = get_device(cfg)
     print(f"Using device: {device}")
 
     # ── Data ──
-    train_loader, valid_loader = build_dataloaders(cfg)
+    pin_memory = device.type == "cuda"  # MPS doesn't support pin_memory
+    train_loader, valid_loader = build_dataloaders(cfg, pin_memory=pin_memory)
     print(
         f"Train samples: {len(train_loader.dataset):,}  |  "
         f"Valid samples: {len(valid_loader.dataset):,}"
@@ -111,9 +115,24 @@ def train(config_path: str = "configs/train_config.yaml") -> None:
     writer = SummaryWriter(log_dir=log_cfg["log_dir"])
     best_auroc = 0.0
     patience_counter = 0
+    start_epoch = 1
+
+    # ── Resume from last checkpoint ──
+    last_ckpt_path = os.path.join(log_cfg["checkpoint_dir"], "last_checkpoint.pt")
+    if resume and os.path.exists(last_ckpt_path):
+        ckpt = torch.load(last_ckpt_path, map_location=device, weights_only=True)
+        model.load_state_dict(ckpt["model_state_dict"])
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if scheduler and "scheduler_state_dict" in ckpt:
+            scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        start_epoch = ckpt["epoch"] + 1
+        best_auroc = ckpt.get("best_auroc", ckpt.get("auroc", 0.0))
+        patience_counter = ckpt.get("patience_counter", 0)
+        print(f"  ↻ Resumed from epoch {ckpt['epoch']} "
+              f"(best AUROC={best_auroc:.4f})")
 
     # ── Training loop ──
-    for epoch in range(1, train_cfg["epochs"] + 1):
+    for epoch in range(start_epoch, train_cfg["epochs"] + 1):
         t0 = time.time()
         print(f"\nEpoch {epoch}/{train_cfg['epochs']}")
 
@@ -147,11 +166,11 @@ def train(config_path: str = "configs/train_config.yaml") -> None:
             best_auroc = mean_auroc
             patience_counter = 0
             save_checkpoint(
-                model,
-                optimizer,
-                epoch,
-                mean_auroc,
+                model, optimizer, epoch, mean_auroc,
                 os.path.join(log_cfg["checkpoint_dir"], "best_model.pt"),
+                scheduler=scheduler,
+                best_auroc=best_auroc,
+                patience_counter=patience_counter,
             )
             print(f"  ✓ New best model (AUROC={mean_auroc:.4f})")
         else:
@@ -159,6 +178,15 @@ def train(config_path: str = "configs/train_config.yaml") -> None:
             if patience_counter >= train_cfg["early_stopping_patience"]:
                 print(f"  Early stopping after {epoch} epochs.")
                 break
+
+        # Always save latest state so we can resume after interruption
+        save_checkpoint(
+            model, optimizer, epoch, mean_auroc,
+            last_ckpt_path,
+            scheduler=scheduler,
+            best_auroc=best_auroc,
+            patience_counter=patience_counter,
+        )
 
     writer.close()
     print(f"\nTraining complete. Best mean AUROC: {best_auroc:.4f}")
@@ -174,5 +202,10 @@ if __name__ == "__main__":
         default="configs/train_config.yaml",
         help="Path to YAML config file",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume training from last_checkpoint.pt",
+    )
     args = parser.parse_args()
-    train(args.config)
+    train(args.config, resume=args.resume)
