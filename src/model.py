@@ -1,5 +1,6 @@
 """Model definitions for CheXpert classification."""
 
+import timm
 import torch.nn as nn
 from torchvision import models
 
@@ -7,8 +8,11 @@ from torchvision import models
 def build_model(cfg: dict) -> nn.Module:
     """Build a classification model from config.
 
-    Replaces the final classifier layer with one that outputs
-    `num_classes` logits (one per target pathology).
+    Supported architectures:
+      - "densenet121"  (torchvision)
+      - "resnet50"     (torchvision)
+      - "swin_tiny"    (timm: swin_tiny_patch4_window7_224)
+      - "vit_base"     (timm: vit_base_patch16_224)
 
     Args:
         cfg: Parsed YAML config.
@@ -32,6 +36,20 @@ def build_model(cfg: dict) -> nn.Module:
         model = models.resnet50(weights=weights)
         in_features = model.fc.in_features
         model.fc = nn.Linear(in_features, num_classes)
+
+    elif arch == "swin_tiny":
+        model = timm.create_model(
+            "swin_tiny_patch4_window7_224",
+            pretrained=pretrained,
+            num_classes=num_classes,
+        )
+
+    elif arch == "vit_base":
+        model = timm.create_model(
+            "vit_base_patch16_224",
+            pretrained=pretrained,
+            num_classes=num_classes,
+        )
 
     else:
         raise ValueError(f"Unsupported architecture: {arch}")

@@ -37,8 +37,11 @@ def compute_aurocs(
 ) -> dict[str, float]:
     """Compute per-label AUROC scores.
 
+    Uncertain labels encoded as -1 (u-mask strategy) are excluded from the
+    AUROC calculation for that label.
+
     Args:
-        y_true: Ground-truth labels, shape (N, C).
+        y_true: Ground-truth labels, shape (N, C).  May contain -1 for uncertain.
         y_pred: Predicted probabilities, shape (N, C).
         label_names: Names corresponding to each column.
 
@@ -48,8 +51,11 @@ def compute_aurocs(
     """
     aurocs = {}
     for i, name in enumerate(label_names):
+        col_true = y_true[:, i]
+        col_pred = y_pred[:, i]
+        certain = col_true >= 0  # exclude uncertain (-1) labels
         try:
-            aurocs[name] = roc_auc_score(y_true[:, i], y_pred[:, i])
+            aurocs[name] = roc_auc_score(col_true[certain], col_pred[certain])
         except ValueError:
             aurocs[name] = float("nan")
     return aurocs
@@ -63,6 +69,7 @@ def save_checkpoint(
     path: str,
     *,
     scheduler=None,
+    scaler=None,
     best_auroc: float | None = None,
     patience_counter: int | None = None,
 ) -> None:
@@ -76,6 +83,8 @@ def save_checkpoint(
     }
     if scheduler is not None:
         payload["scheduler_state_dict"] = scheduler.state_dict()
+    if scaler is not None:
+        payload["scaler_state_dict"] = scaler.state_dict()
     if best_auroc is not None:
         payload["best_auroc"] = best_auroc
     if patience_counter is not None:

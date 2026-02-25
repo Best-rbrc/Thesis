@@ -1,12 +1,14 @@
+experiment_name: "densenet121"
+
 # ── Data ──
 data:
   data_dir: "CheXpert-v1.0-small"
-  train_csv: "CheXpert-v1.0-small/train_split.csv"  # 85% of original train.csv (after split)
-  valid_csv: "CheXpert-v1.0-small/valid.csv"
-  test_csv:  "CheXpert-v1.0-small/test.csv"         # 15% held-out for final evaluation only
+  train_csv: "CheXpert-v1.0-small/train_proper.csv"  # 95% of train_split.csv (patient-level)
+  valid_csv: "CheXpert-v1.0-small/val_proper.csv"    # 5%  of train_split.csv (~9.6k samples)
+  test_csv:  "CheXpert-v1.0-small/test.csv"          # 15% held-out for final evaluation only
   image_size: 224
   frontal_only: true
-  uncertainty_strategy: "u-ones"  # "u-ones", "u-zeros", "u-ignore"
+  uncertainty_strategy: "u-mask"   # "u-ones", "u-zeros", "u-ignore", "u-mask"
 
 # ── Labels ──
 labels:
@@ -31,6 +33,7 @@ training:
   epochs: 10
   learning_rate: 0.0001
   weight_decay: 0.00001
+  warmup_epochs: 1
   scheduler: "cosine"  # "cosine", "step", "none"
   early_stopping_patience: 3
 

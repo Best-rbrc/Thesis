@@ -92,9 +92,14 @@ class CheXpertDataset(Dataset):
                 df[col] = df[col].fillna(0.0).replace(-1.0, 1.0)
             elif uncertainty_strategy in ("u-zeros", "u-ignore"):
                 df[col] = df[col].fillna(0.0).replace(-1.0, 0.0)
+            elif uncertainty_strategy == "u-mask":
+                # NaN (not mentioned) → 0  (implicit negative)
+                # -1  (uncertain)     → kept as -1 so the loss function can mask it
+                df[col] = df[col].fillna(0.0)
             else:
                 raise ValueError(
-                    f"Unknown uncertainty strategy: {uncertainty_strategy}"
+                    f"Unknown uncertainty strategy: {uncertainty_strategy!r}. "
+                    "Choose from: u-ones, u-zeros, u-ignore, u-mask"
                 )
 
         self.df = df
@@ -105,10 +110,15 @@ class CheXpertDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         row = self.df.iloc[idx]
+        raw_path = row["Path"]
 
-        # The CSV path looks like "CheXpert-v1.0-small/train/patient…/…/view.jpg"
-        # We resolve it relative to the workspace root (parent of data_dir).
-        img_path = os.path.join(os.path.dirname(self.data_dir), row["Path"])
+        # CSV path is like "CheXpert-v1.0-small/train/patient…/…/view.jpg"
+        if os.path.isabs(self.data_dir):
+            # Kaggle etc.: data_dir is full path to dataset root; drop first path segment
+            rel = raw_path.split("/", 1)[1] if "/" in raw_path else raw_path
+            img_path = os.path.join(self.data_dir, rel)
+        else:
+            img_path = os.path.join(os.path.dirname(self.data_dir), raw_path)
         image = Image.open(img_path).convert("RGB")
 
         if self.transform:

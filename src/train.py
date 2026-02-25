@@ -1,12 +1,14 @@
 """Training loop for CheXpert multi-label classification."""
 
 import argparse
+import os
 import time
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim.lr_scheduler import CosineAnnealingLR
+import torch.nn.functional as F
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
@@ -15,12 +17,28 @@ from src.model import build_model
 from src.utils import compute_aurocs, get_device, load_config, save_checkpoint
 
 
+def masked_bce_loss(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """BCE loss that ignores uncertain labels (stored as -1).
+
+    Only positions where labels >= 0 (i.e. certain 0 or 1) contribute to the
+    loss.  This prevents the model from being trained on ambiguous signal.
+    """
+    mask = (labels >= 0).float()
+    labels_clean = labels.clamp(min=0.0)  # -1 → 0 at masked positions (won't count)
+    per_elem = F.binary_cross_entropy_with_logits(
+        logits, labels_clean, reduction="none"
+    )
+    return (per_elem * mask).sum() / mask.sum().clamp(min=1.0)
+
+
 def train_one_epoch(
     model: nn.Module,
     loader,
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    scaler: torch.amp.GradScaler,
+    use_amp: bool,
 ) -> float:
     """Run one training epoch. Returns the mean loss."""
     model.train()
@@ -31,10 +49,12 @@ def train_one_epoch(
         labels = labels.to(device, non_blocking=True)
 
         optimizer.zero_grad()
-        logits = model(images)
-        loss = criterion(logits, labels)
-        loss.backward()
-        optimizer.step()
+        with torch.autocast(device_type=device.type, enabled=use_amp):
+            logits = model(images)
+            loss = criterion(logits, labels)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         running_loss += loss.item() * images.size(0)
 
@@ -48,6 +68,7 @@ def validate(
     criterion: nn.Module,
     device: torch.device,
     label_names: list[str],
+    use_amp: bool = False,
 ) -> tuple[float, dict[str, float]]:
     """Run validation. Returns (mean_loss, per-label AUROCs)."""
     model.eval()
@@ -59,8 +80,9 @@ def validate(
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
 
-        logits = model(images)
-        loss = criterion(logits, labels)
+        with torch.autocast(device_type=device.type, enabled=use_amp):
+            logits = model(images)
+            loss = criterion(logits, labels)
         running_loss += loss.item() * images.size(0)
 
         probs = torch.sigmoid(logits)
@@ -98,7 +120,7 @@ def train(
 
     # ── Optimiser & scheduler ──
     train_cfg = cfg["training"]
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=train_cfg["learning_rate"],
         weight_decay=train_cfg["weight_decay"],
@@ -106,25 +128,53 @@ def train(
 
     scheduler = None
     if train_cfg["scheduler"] == "cosine":
-        scheduler = CosineAnnealingLR(optimizer, T_max=train_cfg["epochs"])
+        warmup_epochs = train_cfg.get("warmup_epochs", 0)
+        total_epochs = train_cfg["epochs"]
+        if warmup_epochs > 0:
+            warmup_sched = LinearLR(
+                optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
+            )
+            cosine_sched = CosineAnnealingLR(
+                optimizer, T_max=max(1, total_epochs - warmup_epochs)
+            )
+            scheduler = SequentialLR(
+                optimizer,
+                schedulers=[warmup_sched, cosine_sched],
+                milestones=[warmup_epochs],
+            )
+        else:
+            scheduler = CosineAnnealingLR(optimizer, T_max=total_epochs)
 
-    criterion = nn.BCEWithLogitsLoss()
+    use_masked = cfg["data"].get("uncertainty_strategy") == "u-mask"
+    criterion = masked_bce_loss if use_masked else nn.BCEWithLogitsLoss()
+
+    # ── Mixed precision (AMP) — only on CUDA ──
+    use_amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     # ── Logging ──
     log_cfg = cfg["logging"]
-    writer = SummaryWriter(log_dir=log_cfg["log_dir"])
+    exp = cfg.get("experiment_name", "default")
+    checkpoint_dir = os.path.join(log_cfg["checkpoint_dir"], exp)
+    log_dir = os.path.join(log_cfg["log_dir"], exp)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+
+    writer = SummaryWriter(log_dir=log_dir)
     best_auroc = 0.0
     patience_counter = 0
     start_epoch = 1
 
     # ── Resume from last checkpoint ──
-    last_ckpt_path = os.path.join(log_cfg["checkpoint_dir"], "last_checkpoint.pt")
+    last_ckpt_path = os.path.join(checkpoint_dir, "last_checkpoint.pt")
     if resume and os.path.exists(last_ckpt_path):
-        ckpt = torch.load(last_ckpt_path, map_location=device, weights_only=True)
+        ckpt = torch.load(last_ckpt_path, map_location=device, weights_only=False)
         model.load_state_dict(ckpt["model_state_dict"])
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         if scheduler and "scheduler_state_dict" in ckpt:
             scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+        if use_amp and "scaler_state_dict" in ckpt:
+            scaler.load_state_dict(ckpt["scaler_state_dict"])
         start_epoch = ckpt["epoch"] + 1
         best_auroc = ckpt.get("best_auroc", ckpt.get("auroc", 0.0))
         patience_counter = ckpt.get("patience_counter", 0)
@@ -137,10 +187,10 @@ def train(
         print(f"\nEpoch {epoch}/{train_cfg['epochs']}")
 
         train_loss = train_one_epoch(
-            model, train_loader, criterion, optimizer, device
+            model, train_loader, criterion, optimizer, device, scaler, use_amp
         )
         val_loss, aurocs = validate(
-            model, valid_loader, criterion, device, target_labels
+            model, valid_loader, criterion, device, target_labels, use_amp
         )
 
         if scheduler:
@@ -167,8 +217,9 @@ def train(
             patience_counter = 0
             save_checkpoint(
                 model, optimizer, epoch, mean_auroc,
-                os.path.join(log_cfg["checkpoint_dir"], "best_model.pt"),
+                os.path.join(checkpoint_dir, "best_model.pt"),
                 scheduler=scheduler,
+                scaler=scaler if use_amp else None,
                 best_auroc=best_auroc,
                 patience_counter=patience_counter,
             )
@@ -184,6 +235,7 @@ def train(
             model, optimizer, epoch, mean_auroc,
             last_ckpt_path,
             scheduler=scheduler,
+            scaler=scaler if use_amp else None,
             best_auroc=best_auroc,
             patience_counter=patience_counter,
         )
@@ -193,13 +245,11 @@ def train(
 
 
 if __name__ == "__main__":
-    import os
-
     parser = argparse.ArgumentParser(description="Train CheXpert classifier")
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/train_config.yaml",
+        default="configs/densenet121.yaml",
         help="Path to YAML config file",
     )
     parser.add_argument(

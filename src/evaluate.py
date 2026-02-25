@@ -108,7 +108,7 @@ def evaluate(
     print(f"{split_name} samples: {len(dataset):,}")
 
     model = build_model(cfg).to(device)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
     print(f"Loaded checkpoint: epoch {ckpt['epoch']}  "
           f"(saved AUROC={ckpt.get('auroc', float('nan')):.4f})")
@@ -119,9 +119,20 @@ def evaluate(
 
 
 if __name__ == "__main__":
+    import os
+
+    from src.utils import load_config
+
     parser = argparse.ArgumentParser(description="Evaluate CheXpert model")
-    parser.add_argument("--config", default="configs/train_config.yaml")
-    parser.add_argument("--checkpoint", default="checkpoints/best_model.pt")
+    parser.add_argument("--config", default="configs/densenet121.yaml")
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        help=(
+            "Path to .pt checkpoint. Defaults to "
+            "checkpoints/<experiment_name>/best_model.pt."
+        ),
+    )
     parser.add_argument(
         "--split",
         choices=["valid", "test"],
@@ -129,4 +140,11 @@ if __name__ == "__main__":
         help="Which split to evaluate on. Use 'test' only for final reporting.",
     )
     args = parser.parse_args()
+
+    if args.checkpoint is None:
+        cfg_peek = load_config(args.config)
+        exp = cfg_peek.get("experiment_name", "default")
+        log_cfg = cfg_peek["logging"]
+        args.checkpoint = os.path.join(log_cfg["checkpoint_dir"], exp, "best_model.pt")
+
     evaluate(args.config, args.checkpoint, split=args.split)
