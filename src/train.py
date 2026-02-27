@@ -215,14 +215,24 @@ def train(
         if mean_auroc > best_auroc:
             best_auroc = mean_auroc
             patience_counter = 0
+            best_ckpt_path = os.path.join(checkpoint_dir, "best_model.pt")
             save_checkpoint(
                 model, optimizer, epoch, mean_auroc,
-                os.path.join(checkpoint_dir, "best_model.pt"),
+                best_ckpt_path,
                 scheduler=scheduler,
                 scaler=scaler if use_amp else None,
                 best_auroc=best_auroc,
                 patience_counter=patience_counter,
             )
+            # Mirror best checkpoint to /kaggle/working/ root so it survives
+            # session interruptions and is always available in the Output tab.
+            kaggle_output = os.path.join(
+                "/kaggle/working",
+                f"{exp}_best_model.pt",
+            )
+            if os.path.isdir("/kaggle/working") and os.path.abspath(best_ckpt_path) != os.path.abspath(kaggle_output):
+                import shutil as _shutil
+                _shutil.copy2(best_ckpt_path, kaggle_output)
             print(f"  ✓ New best model (AUROC={mean_auroc:.4f})")
         else:
             patience_counter += 1
