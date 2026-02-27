@@ -1,4 +1,4 @@
-experiment_name: "swin_tiny"
+experiment_name: "vit_base"
 
 # ── Data ──
 data:
@@ -8,7 +8,7 @@ data:
   test_csv:  "CheXpert-v1.0-small/test.csv"          # 15% held-out for final evaluation only
   image_size: 224
   frontal_only: true
-  uncertainty_strategy: "u-mask"   # "u-ones", "u-zeros", "u-ignore", "u-mask"
+  uncertainty_strategy: "u-mask"
 
 # ── Labels ──
 labels:
@@ -21,7 +21,7 @@ labels:
 
 # ── Model ──
 model:
-  architecture: "swin_tiny"
+  architecture: "vit_base"
   pretrained: true
   num_classes: 5
 
@@ -30,11 +30,11 @@ training:
   batch_size: 64
   num_workers: 2
   epochs: 30
-  learning_rate: 0.00005   # transformers benefit from a lower LR than CNNs
-  weight_decay: 0.05        # standard for Swin/ViT (original paper uses 0.05)
-  warmup_epochs: 5          # linear warmup before cosine decay
+  learning_rate: 0.00003   # slightly lower than Swin — ViT-Base is more sensitive
+  weight_decay: 0.1         # ViT-Base needs stronger regularization than Swin
+  warmup_epochs: 5          # ViT needs more warmup than Swin
   scheduler: "cosine"
-  early_stopping_patience: 7  # transformers converge more slowly
+  early_stopping_patience: 7
 
 # ── Device ──
 device: "auto"  # "auto", "mps", "cuda", "cpu"

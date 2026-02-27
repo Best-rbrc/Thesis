@@ -53,6 +53,8 @@ def train_one_epoch(
             logits = model(images)
             loss = criterion(logits, labels)
         scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         scaler.step(optimizer)
         scaler.update()
 
@@ -120,10 +122,22 @@ def train(
 
     # ── Optimiser & scheduler ──
     train_cfg = cfg["training"]
+    weight_decay = train_cfg["weight_decay"]
+
+    # Bias terms, LayerNorm/BatchNorm weights must NOT get weight decay —
+    # this is standard practice for all transformer (and CNN) models.
+    no_decay = {"bias", "norm.weight", "norm1.weight", "norm2.weight",
+                "LayerNorm.weight", "bn.weight"}
+    decay_params = [p for n, p in model.named_parameters()
+                    if not any(nd in n for nd in no_decay) and p.requires_grad]
+    no_decay_params = [p for n, p in model.named_parameters()
+                       if any(nd in n for nd in no_decay) and p.requires_grad]
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        [
+            {"params": decay_params,    "weight_decay": weight_decay},
+            {"params": no_decay_params, "weight_decay": 0.0},
+        ],
         lr=train_cfg["learning_rate"],
-        weight_decay=train_cfg["weight_decay"],
     )
 
     scheduler = None

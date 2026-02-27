@@ -1,0 +1,47 @@
+experiment_name: "swin_tiny"
+
+# ── NOTE ──────────────────────────────────────────────────────────────────────
+# Run 002 — First Swin-Tiny run (suboptimal hyperparameters).
+# Key issues: weight_decay too low (0.00005), no drop_path, no gradient clipping,
+#             no AdamW parameter groups, batch_size 32, patience 5.
+# Superseded by run003 with corrected settings.
+# ──────────────────────────────────────────────────────────────────────────────
+
+data:
+  data_dir: "CheXpert-v1.0-small"
+  train_csv: "CheXpert-v1.0-small/train_proper.csv"
+  valid_csv: "CheXpert-v1.0-small/val_proper.csv"
+  test_csv:  "CheXpert-v1.0-small/test.csv"
+  image_size: 224
+  frontal_only: true
+  uncertainty_strategy: "u-mask"
+
+labels:
+  target_labels:
+    - "Cardiomegaly"
+    - "Edema"
+    - "Consolidation"
+    - "Atelectasis"
+    - "Pleural Effusion"
+
+model:
+  architecture: "swin_tiny"
+  pretrained: true
+  num_classes: 5
+
+training:
+  batch_size: 32
+  num_workers: 2
+  epochs: 20
+  learning_rate: 0.00005
+  weight_decay: 0.00005   # BUG: too low, should be 0.05
+  warmup_epochs: 2
+  scheduler: "cosine"
+  early_stopping_patience: 5
+
+device: "auto"
+
+logging:
+  checkpoint_dir: "checkpoints"
+  log_dir: "runs"
+  save_best_only: true

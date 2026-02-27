@@ -42,6 +42,7 @@ def build_model(cfg: dict) -> nn.Module:
             "swin_tiny_patch4_window7_224",
             pretrained=pretrained,
             num_classes=num_classes,
+            drop_path_rate=0.1,
         )
 
     elif arch == "vit_base":
@@ -49,6 +50,7 @@ def build_model(cfg: dict) -> nn.Module:
             "vit_base_patch16_224",
             pretrained=pretrained,
             num_classes=num_classes,
+            drop_path_rate=0.1,
         )
 
     else:

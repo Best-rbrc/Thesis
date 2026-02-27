@@ -138,12 +138,14 @@ def get_train_transforms(image_size: int = 320) -> transforms.Compose:
             transforms.Resize((image_size, image_size)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
+            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
             transforms.ColorJitter(brightness=0.2, contrast=0.2),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225],
             ),
+            transforms.RandomErasing(p=0.25, scale=(0.02, 0.1)),
         ]
     )
 
