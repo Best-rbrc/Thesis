@@ -119,7 +119,8 @@ class CheXpertDataset(Dataset):
             img_path = os.path.join(self.data_dir, rel)
         else:
             img_path = os.path.join(os.path.dirname(self.data_dir), raw_path)
-        image = Image.open(img_path).convert("RGB")
+        color_mode = "L" if getattr(self, "grayscale", False) else "RGB"
+        image = Image.open(img_path).convert(color_mode)
 
         if self.transform:
             image = self.transform(image)
@@ -132,20 +133,18 @@ class CheXpertDataset(Dataset):
 
 
 def get_train_transforms(image_size: int = 320) -> transforms.Compose:
-    """Training-time augmentations."""
+    """Training-time augmentations (radiology-safe: no ColorJitter/Erasing)."""
     return transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(10),
             transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
             transforms.ToTensor(),
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225],
             ),
-            transforms.RandomErasing(p=0.25, scale=(0.02, 0.1)),
         ]
     )
 
@@ -160,6 +159,34 @@ def get_valid_transforms(image_size: int = 320) -> transforms.Compose:
                 mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225],
             ),
+        ]
+    )
+
+
+# ─── CXR-specific transforms (torchxrayvision) ─────────────────────────────
+
+
+def get_cxr_train_transforms(image_size: int = 224) -> transforms.Compose:
+    """Training transforms for CXR-pretrained models (grayscale, xrv normalization)."""
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(10),
+            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+        ]
+    )
+
+
+def get_cxr_valid_transforms(image_size: int = 224) -> transforms.Compose:
+    """Validation transforms for CXR-pretrained models (grayscale, xrv normalization)."""
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
         ]
     )
 
@@ -187,24 +214,34 @@ def build_dataloaders(
 
     image_size = data_cfg["image_size"]
     target_labels = label_cfg["target_labels"]
+    use_cxr = data_cfg.get("cxr_pretrained", False)
+
+    if use_cxr:
+        train_tfm = get_cxr_train_transforms(image_size)
+        valid_tfm = get_cxr_valid_transforms(image_size)
+    else:
+        train_tfm = get_train_transforms(image_size)
+        valid_tfm = get_valid_transforms(image_size)
 
     train_dataset = CheXpertDataset(
         csv_path=data_cfg["train_csv"],
         data_dir=data_cfg["data_dir"],
         target_labels=target_labels,
-        transform=get_train_transforms(image_size),
+        transform=train_tfm,
         frontal_only=data_cfg["frontal_only"],
         uncertainty_strategy=data_cfg["uncertainty_strategy"],
     )
+    train_dataset.grayscale = use_cxr
 
     valid_dataset = CheXpertDataset(
         csv_path=data_cfg["valid_csv"],
         data_dir=data_cfg["data_dir"],
         target_labels=target_labels,
-        transform=get_valid_transforms(image_size),
+        transform=valid_tfm,
         frontal_only=data_cfg["frontal_only"],
-        uncertainty_strategy="u-ones",  # valid set has no -1, but be safe
+        uncertainty_strategy="u-ones",
     )
+    valid_dataset.grayscale = use_cxr
 
     nw = train_cfg["num_workers"]
 

@@ -57,10 +57,16 @@ All splits are **patient-level** (no patient appears in more than one split).
 
 | Run | Model | Date | Best Epoch | Val AUROC | **Test AUROC** |
 |---|---|---|---|---|---|
-| 001 | DenseNet121 | 2025-02-25 | 6 | 0.7951 | 0.7888 |
+| 001 | DenseNet121 (ImageNet) | 2025-02-25 | 6 | 0.7951 | 0.7888 |
 | 002 | Swin-Tiny v1 | 2025-02-25 | 7 | 0.7942 | 0.7905 |
-| 003 | Swin-Tiny v2 | 2026-02-26 | 11 | 0.7882 | **0.8076** |
-| 004 | ViT-Base | 2026-02-27 | 10 | 0.7854 | **0.8041** |
+| 003 | Swin-Tiny v2 (224px) | 2026-02-26 | 11 | 0.7882 | 0.8076 |
+| 004 | ViT-Base | 2026-02-27 | 10 | 0.7854 | 0.8041 |
+| 005 | Swin-Tiny v3 (384px) | 2026-02-13 | 9 | 0.7944 | 0.8075 |
+| 006 | DenseNet121-CXR (torchxrayvision) | 2026-02-28 | 13 | 0.7794 | 0.7853 |
+| — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
+| — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
+| — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
+| — | **Ensemble (Swin+ViT)** | 2026-02-27 | — | — | **0.8111** |
 
 ---
 
@@ -98,6 +104,17 @@ All splits are **patient-level** (no patient appears in more than one split).
 | Atelectasis | 0.7172 |
 | Pleural Effusion | 0.8857 |
 | **Mean** | **0.8041** |
+
+### Run 005 — Swin-Tiny v3 (384px)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8644 | 0.8677 | +0.0033 |
+| Edema | 0.8658 | 0.8669 | +0.0011 |
+| Consolidation | 0.6953 | 0.6975 | +0.0022 |
+| Atelectasis | 0.7218 | 0.7227 | +0.0009 |
+| Pleural Effusion | 0.8903 | 0.8927 | +0.0024 |
+| **Mean** | **0.8075** | **0.8095** | **+0.0020** |
 
 ---
 
@@ -204,6 +221,103 @@ Checkpoint: [`checkpoints/vit_base/run004_vit_base_ep10_val0.7854_test0.8041.pt`
 
 ---
 
+### Run 006 — DenseNet121-CXR (torchxrayvision)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8484 | 0.8506 | +0.0022 |
+| Edema | 0.8413 | 0.8429 | +0.0016 |
+| Consolidation | 0.6695 | 0.6699 | +0.0004 |
+| Atelectasis | 0.6937 | 0.6970 | +0.0033 |
+| Pleural Effusion | 0.8734 | 0.8751 | +0.0017 |
+| **Mean** | **0.7853** | **0.7871** | **+0.0018** |
+
+---
+
+### Run 006 — DenseNet121-CXR (Hyperparameters)
+
+| Parameter | Value |
+|---|---|
+| Architecture | `densenet121` (torchxrayvision, pretrained on 7 CXR datasets) |
+| Pretrained | CXR (densenet121-res224-all) |
+| Image size | 224×224 |
+| Normalization | Grayscale, mean=0.5, std=0.5 |
+| Batch size | 32 |
+| Epochs (max) | 15 |
+| Best epoch | 13 |
+| Learning rate | 1e-4 |
+| Weight decay | 1e-5 |
+| Warmup epochs | 1 |
+| Scheduler | Cosine |
+| Early stopping patience | 5 |
+| Drop path | — |
+
+Config: [`configs/archive/run006_densenet121_cxr_2026-02-28/densenet121_cxr.yaml`](configs/archive/run006_densenet121_cxr_2026-02-28/densenet121_cxr.yaml)  
+Checkpoint: [`checkpoints/densenet121_cxr/run006_densenet121_cxr_ep13_val0.7794_test0.7853.pt`](checkpoints/densenet121_cxr/run006_densenet121_cxr_ep13_val0.7794_test0.7853.pt)
+
+---
+
+### Run 005 — Swin-Tiny v3 (384px resolution)
+
+| Parameter | Value |
+|---|---|
+| Architecture | `swin_tiny_patch4_window7_224` (timm, `img_size=384`) |
+| Pretrained | ImageNet-1k |
+| Image size | 384×384 |
+| Batch size | 32 |
+| Epochs (max) | 30 |
+| Learning rate | 5e-5 |
+| Weight decay | 0.05 |
+| Warmup epochs | 2 |
+| Scheduler | Cosine |
+| Early stopping patience | 7 |
+| Drop path | 0.1 |
+| Gradient clipping | max_norm=1.0 |
+| AdamW param groups | bias/norm WD=0, rest WD=0.05 |
+| Per-epoch time | ~53 min (vs. ~20 min at 224px) |
+
+Config: [`configs/archive/run005_swin_tiny_v3_2026-02-13/swin_tiny.yaml`](configs/archive/run005_swin_tiny_v3_2026-02-13/swin_tiny.yaml)  
+Checkpoint: [`checkpoints/swin_tiny/run005_swin_tiny_v3_ep09_val0.7944_test0.8075.pt`](checkpoints/swin_tiny/run005_swin_tiny_v3_ep09_val0.7944_test0.8075.pt)
+
+---
+
+## Post-hoc Evaluation (no retraining)
+
+### TTA — Swin-Tiny v2 (Run 003 + horizontal flip average)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8650 | 0.8669 | +0.0019 |
+| Edema | 0.8613 | 0.8626 | +0.0013 |
+| Consolidation | 0.6994 | 0.6994 | +0.0000 |
+| Atelectasis | 0.7242 | 0.7258 | +0.0016 |
+| Pleural Effusion | 0.8880 | 0.8897 | +0.0017 |
+| **Mean** | **0.8076** | **0.8089** | **+0.0013** |
+
+### TTA — Swin-Tiny v3 (Run 005 + horizontal flip average)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8644 | 0.8677 | +0.0033 |
+| Edema | 0.8658 | 0.8669 | +0.0011 |
+| Consolidation | 0.6953 | 0.6975 | +0.0022 |
+| Atelectasis | 0.7218 | 0.7227 | +0.0009 |
+| Pleural Effusion | 0.8903 | 0.8927 | +0.0024 |
+| **Mean** | **0.8075** | **0.8095** | **+0.0020** |
+
+### Ensemble — Swin-Tiny v2 + ViT-Base (logit average)
+
+| Label | Swin-Tiny | ViT-Base | Ensemble | Δ vs best single |
+|---|---|---|---|---|
+| Cardiomegaly | 0.8650 | 0.8615 | 0.8678 | +0.0028 |
+| Edema | 0.8613 | 0.8586 | 0.8647 | +0.0034 |
+| Consolidation | 0.6994 | 0.6974 | 0.7033 | +0.0039 |
+| Atelectasis | 0.7242 | 0.7172 | 0.7277 | +0.0035 |
+| Pleural Effusion | 0.8880 | 0.8857 | 0.8919 | +0.0039 |
+| **Mean** | **0.8076** | **0.8041** | **0.8111** | **+0.0035** |
+
+---
+
 ## Key Observations
 
 1. **Both Transformer models outperform DenseNet121** on the test set (~+2% AUROC), consistent with the literature.
@@ -211,6 +325,10 @@ Checkpoint: [`checkpoints/vit_base/run004_vit_base_ep10_val0.7854_test0.8041.pt`
 3. **Consolidation and Atelectasis are consistently the hardest labels** across all models (~0.70 and ~0.72 AUROC). This is known in the CheXpert literature due to high label uncertainty.
 4. **Hyperparameter corrections mattered significantly**: Fixing weight_decay (5e-5 → 0.05), adding drop_path=0.1, AdamW parameter groups, and gradient clipping improved Swin-Tiny by +1.7% AUROC (0.7905 → 0.8076).
 5. **Neither Transformer model trained to completion** — both stopped via early stopping at ~epoch 11/10 out of 30. Further tuning of warmup_epochs (5 may be too long) could allow longer effective training.
+6. **TTA provides a small but consistent gain** (+0.0013 mean AUROC) on Swin-Tiny v2, improving every label except Consolidation.
+7. **Ensemble of Swin-Tiny + ViT-Base yields the best result** (0.8111), improving every single label over the best individual model. The gain is largest for the hardest labels: Consolidation (+0.0039) and Atelectasis (+0.0035).
+8. **Higher resolution (384px) does NOT improve Swin-Tiny**: Run 005 at 384px achieved 0.8075 test AUROC, virtually identical to Run 003 at 224px (0.8076). The 384px model costs ~2.7× more compute per epoch (53 min vs. 20 min), making it a poor trade-off. TTA benefit was slightly larger at 384px (+0.0020 vs +0.0013), but the net result (0.8095) only marginally exceeds v2+TTA (0.8089).
+9. **CXR pretraining (torchxrayvision) does NOT outperform ImageNet pretraining**: DenseNet121-CXR (0.7853) is actually worse than the standard ImageNet DenseNet121 (0.7888) and far below the Transformer models (~0.80+). Likely causes: the pretrained 18-class head is replaced with a fresh 5-class head (loses task-specific features), the CXR normalization (grayscale, mean=0.5) may not perfectly match the torchxrayvision pretraining pipeline, and the hyperparameters were not optimised for domain-adaptive fine-tuning. This is an important negative result for the thesis.
 
 ---
 

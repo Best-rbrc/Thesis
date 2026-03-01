@@ -32,7 +32,7 @@ training:
   epochs: 30
   learning_rate: 0.00003   # slightly lower than Swin — ViT-Base is more sensitive
   weight_decay: 0.1         # ViT-Base needs stronger regularization than Swin
-  warmup_epochs: 5          # ViT needs more warmup than Swin
+  warmup_epochs: 2          # shorter warmup = more effective training epochs
   scheduler: "cosine"
   early_stopping_patience: 7
 
