@@ -1,0 +1,42 @@
+experiment_name: "swin_tiny_consolidation"
+
+# ── Data ──
+data:
+  data_dir: "CheXpert-v1.0-small"
+  train_csv: "CheXpert-v1.0-small/train_proper.csv"
+  valid_csv: "CheXpert-v1.0-small/val_proper.csv"
+  test_csv:  "CheXpert-v1.0-small/test.csv"
+  image_size: 224
+  frontal_only: true
+  uncertainty_strategy: "u-mask"
+
+# ── Labels (single-label: Consolidation only) ──
+labels:
+  target_labels:
+    - "Consolidation"
+
+# ── Model ──
+model:
+  architecture: "swin_tiny"
+  pretrained: true
+  num_classes: 1
+
+# ── Training (identical to Run 003 for fair comparison) ──
+training:
+  batch_size: 128 #for two gpus?
+  num_workers: 2
+  epochs: 30
+  learning_rate: 0.00005
+  weight_decay: 0.05
+  warmup_epochs: 5
+  scheduler: "cosine"
+  early_stopping_patience: 7
+
+# ── Device ──
+device: "auto"
+
+# ── Logging ──
+logging:
+  checkpoint_dir: "checkpoints"
+  log_dir: "runs"
+  save_best_only: true

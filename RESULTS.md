@@ -318,6 +318,42 @@ Checkpoint: [`checkpoints/swin_tiny/run005_swin_tiny_v3_ep09_val0.7944_test0.807
 
 ---
 
+## Stratified AUROC and False Positive Analysis (Run 003 — Swin-Tiny v2)
+
+Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–1 diseases, **12,600** with 2+ diseases.
+
+### Stratified AUROC (0–1 vs 2+ diseases)
+
+| Label | N(0-1) | AUROC(0-1) | N(2+) | AUROC(2+) | Δ |
+|---|---:|---:|---:|---:|---:|
+| Cardiomegaly | 16,039 | 0.8299 | 12,600 | 0.8487 | +0.0188 |
+| Edema | 16,039 | 0.8489 | 12,600 | 0.8233 | −0.0256 |
+| Consolidation | 16,039 | 0.7400 | 12,600 | 0.5912 | **−0.1489** |
+| Atelectasis | 16,039 | 0.7195 | 12,600 | 0.6753 | −0.0442 |
+| Pleural Effusion | 16,039 | 0.8872 | 12,600 | 0.8449 | −0.0423 |
+| **MEAN** | | **0.8051** | | **0.7567** | **−0.0484** |
+
+**Conclusion:** The model performs **worse on samples with 2+ diseases** (mean AUROC 0.7567 vs 0.8051). The drop is largest for **Consolidation** (−0.15).
+
+### False Positives (threshold 0.5)
+
+| Label | Negatives | FP | FPR (%) | Samples w/ FP |
+|---|---:|---:|---:|---:|
+| Cardiomegaly | 24,158 | 612 | 2.53% | 612 (2.1%) |
+| Edema | 19,510 | 1,296 | 6.64% | 1,296 (4.5%) |
+| Consolidation | 23,147 | 19 | 0.08% | 19 (0.1%) |
+| Atelectasis | 19,727 | 171 | 0.87% | 171 (0.6%) |
+| Pleural Effusion | 15,701 | 3,070 | **19.55%** | 3,070 (10.7%) |
+| **OVERALL** | 102,243 | 5,168 | **5.05%** | — |
+
+**Samples with ≥1 false positive (any label):** 4,776 / 28,639 (**16.7%**).
+
+**Conclusion:** Pleural Effusion has the highest false positive rate (19.55%); Consolidation has the lowest (0.08%). Overall FPR 5.05%.
+
+*Generated with:* `uv run python -m scripts.analyze_multilabel --config configs/archive/run003_swin_tiny_v2_2026-02-26/swin_tiny.yaml --checkpoint checkpoints/swin_tiny/run003_swin_tiny_v2_ep11_val0.7882_test0.8076.pt`
+
+---
+
 ## Key Observations
 
 1. **Both Transformer models outperform DenseNet121** on the test set (~+2% AUROC), consistent with the literature.
@@ -329,6 +365,7 @@ Checkpoint: [`checkpoints/swin_tiny/run005_swin_tiny_v3_ep09_val0.7944_test0.807
 7. **Ensemble of Swin-Tiny + ViT-Base yields the best result** (0.8111), improving every single label over the best individual model. The gain is largest for the hardest labels: Consolidation (+0.0039) and Atelectasis (+0.0035).
 8. **Higher resolution (384px) does NOT improve Swin-Tiny**: Run 005 at 384px achieved 0.8075 test AUROC, virtually identical to Run 003 at 224px (0.8076). The 384px model costs ~2.7× more compute per epoch (53 min vs. 20 min), making it a poor trade-off. TTA benefit was slightly larger at 384px (+0.0020 vs +0.0013), but the net result (0.8095) only marginally exceeds v2+TTA (0.8089).
 9. **CXR pretraining (torchxrayvision) does NOT outperform ImageNet pretraining**: DenseNet121-CXR (0.7853) is actually worse than the standard ImageNet DenseNet121 (0.7888) and far below the Transformer models (~0.80+). Likely causes: the pretrained 18-class head is replaced with a fresh 5-class head (loses task-specific features), the CXR normalization (grayscale, mean=0.5) may not perfectly match the torchxrayvision pretraining pipeline, and the hyperparameters were not optimised for domain-adaptive fine-tuning. This is an important negative result for the thesis.
+10. **Multi-disease and false positive behaviour (Swin-Tiny v2):** Performance drops on samples with 2+ diseases (mean AUROC 0.7567 vs 0.8051), with the largest drop for Consolidation (−0.15). At threshold 0.5, Pleural Effusion has the highest FPR (19.55%) and Consolidation the lowest (0.08%); 16.7% of test samples have at least one false positive. Relevant for the thesis discussion on multi-label and clinical deployment (calibration / threshold choice).
 
 ---
 
@@ -345,6 +382,11 @@ uv run python -m src.evaluate \
 
 # Re-train from scratch
 uv run python -m src.train --config configs/swin_tiny.yaml
+
+# Stratified AUROC + False Positive analysis (Run 003)
+uv run python -m scripts.analyze_multilabel \
+  --config configs/archive/run003_swin_tiny_v2_2026-02-26/swin_tiny.yaml \
+  --checkpoint checkpoints/swin_tiny/run003_swin_tiny_v2_ep11_val0.7882_test0.8076.pt
 ```
 
 Python version: 3.13  

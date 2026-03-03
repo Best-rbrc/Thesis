@@ -118,6 +118,9 @@ def train(
 
     # ── Model ──
     model = build_model(cfg).to(device)
+    if device.type == "cuda" and torch.cuda.device_count() > 1:
+        print(f"  Using DataParallel on {torch.cuda.device_count()} GPUs")
+        model = nn.DataParallel(model)
     target_labels = cfg["labels"]["target_labels"]
 
     # ── Optimiser & scheduler ──
@@ -180,10 +183,11 @@ def train(
     start_epoch = 1
 
     # ── Resume from last checkpoint ──
+    raw_model = model.module if isinstance(model, nn.DataParallel) else model
     last_ckpt_path = os.path.join(checkpoint_dir, "last_checkpoint.pt")
     if resume and os.path.exists(last_ckpt_path):
         ckpt = torch.load(last_ckpt_path, map_location=device, weights_only=False)
-        model.load_state_dict(ckpt["model_state_dict"])
+        raw_model.load_state_dict(ckpt["model_state_dict"])
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         if scheduler and "scheduler_state_dict" in ckpt:
             scheduler.load_state_dict(ckpt["scheduler_state_dict"])
@@ -231,7 +235,7 @@ def train(
             patience_counter = 0
             best_ckpt_path = os.path.join(checkpoint_dir, "best_model.pt")
             save_checkpoint(
-                model, optimizer, epoch, mean_auroc,
+                raw_model, optimizer, epoch, mean_auroc,
                 best_ckpt_path,
                 scheduler=scheduler,
                 scaler=scaler if use_amp else None,
@@ -256,7 +260,7 @@ def train(
 
         # Always save latest state so we can resume after interruption
         save_checkpoint(
-            model, optimizer, epoch, mean_auroc,
+            raw_model, optimizer, epoch, mean_auroc,
             last_ckpt_path,
             scheduler=scheduler,
             scaler=scaler if use_amp else None,
