@@ -63,6 +63,7 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 004 | ViT-Base | 2026-02-27 | 10 | 0.7854 | 0.8041 |
 | 005 | Swin-Tiny v3 (384px) | 2026-02-13 | 9 | 0.7944 | 0.8075 |
 | 006 | DenseNet121-CXR (torchxrayvision) | 2026-02-28 | 13 | 0.7794 | 0.7853 |
+| 007 | Swin-Tiny single-label (Consolidation only) | 2026-02-13 | 16 | 0.6744 | **0.7082** |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
@@ -104,6 +105,17 @@ All splits are **patient-level** (no patient appears in more than one split).
 | Atelectasis | 0.7172 |
 | Pleural Effusion | 0.8857 |
 | **Mean** | **0.8041** |
+
+### Run 007 — Swin-Tiny single-label (Consolidation only)
+
+| Label | AUROC |
+|---|---|
+| Consolidation | **0.7082** |
+| **Mean** | **0.7082** |
+
+**Comparison vs. multi-label Swin-Tiny v2 (Run 003):** Consolidation 0.6994 → 0.7082 (**Δ +0.0088**). Single-label training yields a modest but real improvement for the hardest label.
+
+---
 
 ### Run 005 — Swin-Tiny v3 (384px)
 
@@ -281,6 +293,30 @@ Checkpoint: [`checkpoints/swin_tiny/run005_swin_tiny_v3_ep09_val0.7944_test0.807
 
 ---
 
+### Run 007 — Swin-Tiny single-label (Consolidation only)
+
+| Parameter | Value |
+|---|---|
+| Architecture | `swin_tiny_patch4_window7_224` (timm) |
+| Pretrained | ImageNet-1k |
+| Task | **Single-label** (Consolidation only, num_classes=1) |
+| Image size | 224×224 |
+| Batch size | 128 |
+| Epochs (max) | 30 |
+| Learning rate | 5e-5 |
+| Weight decay | 0.05 |
+| Warmup epochs | 5 |
+| Scheduler | Cosine |
+| Early stopping patience | 7 |
+| Drop path | 0.1 |
+| Gradient clipping | max_norm=1.0 |
+| AdamW param groups | bias/norm WD=0, rest WD=0.05 |
+
+Config: [`configs/archive/run007_swin_tiny_consolidation_2026-02-13/swin_tiny_consolidation.yaml`](configs/archive/run007_swin_tiny_consolidation_2026-02-13/swin_tiny_consolidation.yaml)  
+Checkpoint: [`checkpoints/swin_tiny/run007_swin_tiny_consolidation_ep16_val0.6744_test0.7082.pt`](checkpoints/swin_tiny/run007_swin_tiny_consolidation_ep16_val0.6744_test0.7082.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny v2 (Run 003 + horizontal flip average)
@@ -366,6 +402,7 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 8. **Higher resolution (384px) does NOT improve Swin-Tiny**: Run 005 at 384px achieved 0.8075 test AUROC, virtually identical to Run 003 at 224px (0.8076). The 384px model costs ~2.7× more compute per epoch (53 min vs. 20 min), making it a poor trade-off. TTA benefit was slightly larger at 384px (+0.0020 vs +0.0013), but the net result (0.8095) only marginally exceeds v2+TTA (0.8089).
 9. **CXR pretraining (torchxrayvision) does NOT outperform ImageNet pretraining**: DenseNet121-CXR (0.7853) is actually worse than the standard ImageNet DenseNet121 (0.7888) and far below the Transformer models (~0.80+). Likely causes: the pretrained 18-class head is replaced with a fresh 5-class head (loses task-specific features), the CXR normalization (grayscale, mean=0.5) may not perfectly match the torchxrayvision pretraining pipeline, and the hyperparameters were not optimised for domain-adaptive fine-tuning. This is an important negative result for the thesis.
 10. **Multi-disease and false positive behaviour (Swin-Tiny v2):** Performance drops on samples with 2+ diseases (mean AUROC 0.7567 vs 0.8051), with the largest drop for Consolidation (−0.15). At threshold 0.5, Pleural Effusion has the highest FPR (19.55%) and Consolidation the lowest (0.08%); 16.7% of test samples have at least one false positive. Relevant for the thesis discussion on multi-label and clinical deployment (calibration / threshold choice).
+11. **Single-label vs. multi-label for Consolidation (Run 007):** A dedicated Swin-Tiny model trained only on Consolidation achieves 0.7082 AUROC on the test set vs. 0.6994 for the multi-label Swin-Tiny v2 (Δ +0.0088). This is a modest but real improvement. The single-label model also beats the Swin+ViT ensemble (0.7033) for Consolidation. The gain does not justify 5× inference cost if applied per-label; a hybrid setup (multi-label + optional single-label for hardest labels) could be considered.
 
 ---
 
@@ -387,6 +424,12 @@ uv run python -m src.train --config configs/swin_tiny.yaml
 uv run python -m scripts.analyze_multilabel \
   --config configs/archive/run003_swin_tiny_v2_2026-02-26/swin_tiny.yaml \
   --checkpoint checkpoints/swin_tiny/run003_swin_tiny_v2_ep11_val0.7882_test0.8076.pt
+
+# Evaluate single-label Consolidation model (Run 007)
+uv run python -m src.evaluate \
+  --config configs/archive/run007_swin_tiny_consolidation_2026-02-13/swin_tiny_consolidation.yaml \
+  --checkpoint checkpoints/swin_tiny/run007_swin_tiny_consolidation_ep16_val0.6744_test0.7082.pt \
+  --split test
 ```
 
 Python version: 3.13  

@@ -1,7 +1,7 @@
-"""Attention Map visualization for Transformer-based CheXpert models.
+"""Attention/Saliency Map visualization for Transformer-based CheXpert models.
 
-Extracts and visualizes attention weights from Swin-Tiny and ViT-Base models.
-Shows which spatial regions the model attends to during classification.
+For ViT: Extracts CLS token attention weights (what the classifier looks at).
+For Swin: Uses gradient-based saliency (which patches affect prediction most).
 
 Usage (from project root):
   uv run python -m scripts.attention_maps \
@@ -30,105 +30,73 @@ from src.model import build_model
 from src.utils import get_device, load_config
 
 
-class AttentionExtractor:
-    """Hook-based attention weight extractor for transformers."""
+def get_vit_attention_map(model, input_tensor, img_size=224):
+    """Extract attention map from ViT CLS token."""
+    attention_weights = []
     
-    def __init__(self):
-        self.attentions = []
-        self.hooks = []
-    
-    def register_hooks(self, model, arch: str):
-        """Register forward hooks to capture attention weights."""
-        self.attentions = []
-        self.hooks = []
+    def hook_fn(module, input, output):
+        # For timm ViT, attention module computes QKV internally
+        # We need to replicate to get attention weights
+        B, N, C = input[0].shape
+        qkv = module.qkv(input[0]).reshape(B, N, 3, module.num_heads, C // module.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # (B, num_heads, N, head_dim)
         
-        if arch == "swin_tiny":
-            # Extract attention from last stage, last block
-            # Swin structure: model.layers[3].blocks[-1].attn
-            target_block = model.layers[-1].blocks[-1]
-            
-            def swin_hook(module, input, output):
-                # Swin attention output is (B, H*W, C)
-                # We need to capture the attention weights from the module
-                # The attn module computes: softmax(Q@K.T/scale) @ V
-                # We'll hook the attn_drop which comes after softmax
-                if hasattr(module, 'attn_drop') and hasattr(module, 'q'):
-                    # During forward, capture attention matrix
-                    self.attentions.append(output)
-            
-            # Hook the entire attention module
-            handle = target_block.attn.register_forward_hook(swin_hook)
-            self.hooks.append(handle)
-            
-        elif arch == "vit_base":
-            # Extract attention from all blocks for attention rollout
-            # ViT structure: model.blocks[i].attn
-            for block in model.blocks:
-                def vit_hook(module, input, output):
-                    # ViT attention returns tuple: (output, attention_weights)
-                    # If attention weights are returned, capture them
-                    self.attentions.append(input[0])  # input to norm after attention
-                
-                handle = block.attn.register_forward_hook(vit_hook)
-                self.hooks.append(handle)
-        else:
-            raise ValueError(f"Attention maps only supported for swin_tiny and vit_base, got: {arch}")
+        # Compute attention scores
+        attn = (q @ k.transpose(-2, -1)) * module.scale  # (B, num_heads, N, N)
+        attn = attn.softmax(dim=-1)
+        attention_weights.append(attn.detach().cpu())
     
-    def remove_hooks(self):
-        """Remove all registered hooks."""
-        for handle in self.hooks:
-            handle.remove()
-        self.hooks = []
+    # Register hook on last attention block
+    handle = model.blocks[-1].attn.register_forward_hook(hook_fn)
     
-    def get_attention_map(self, arch: str, img_size: int) -> np.ndarray:
-        """Aggregate collected attention weights into a spatial heatmap."""
-        if arch == "swin_tiny":
-            # Swin: Average attention across heads and windows
-            # The output shape is (B, H*W, C)
-            # We need to reshape back to spatial dimensions
-            if not self.attentions:
-                # Fallback: return uniform attention
-                grid_size = img_size // 32  # Swin patches at final stage
-                return np.ones((grid_size, grid_size), dtype=np.float32)
-            
-            # Use the last attention output
-            attn_output = self.attentions[-1]  # (B, N, C)
-            if isinstance(attn_output, torch.Tensor):
-                attn_output = attn_output[0].detach().cpu()  # First sample
-                # Compute attention as norm across channels
-                attn_map = attn_output.norm(dim=-1).numpy()  # (N,)
-                # Reshape to spatial grid
-                grid_size = int(np.sqrt(len(attn_map)))
-                attn_map = attn_map.reshape(grid_size, grid_size)
-                # Normalize
-                attn_map = (attn_map - attn_map.min()) / (attn_map.max() - attn_map.min() + 1e-8)
-                return attn_map
-            
-        elif arch == "vit_base":
-            # ViT: Attention rollout from CLS token
-            # For simplicity, we'll aggregate the last layer's attention
-            # More sophisticated: multiply all attention matrices
-            if not self.attentions:
-                grid_size = img_size // 16  # ViT patch size
-                return np.ones((grid_size, grid_size), dtype=np.float32)
-            
-            # Use the final block's output before its attention
-            # We'll compute a simple norm-based attention map
-            final_attn = self.attentions[-1]  # (B, N+1, C) with CLS token
-            if isinstance(final_attn, torch.Tensor):
-                final_attn = final_attn[0].detach().cpu()  # (N+1, C)
-                # Remove CLS token (position 0)
-                patch_attn = final_attn[1:]  # (N, C)
-                # Compute importance as L2 norm
-                attn_map = patch_attn.norm(dim=-1).numpy()  # (N,)
-                # Reshape to spatial grid
-                grid_size = int(np.sqrt(len(attn_map)))
-                attn_map = attn_map.reshape(grid_size, grid_size)
-                # Normalize
-                attn_map = (attn_map - attn_map.min()) / (attn_map.max() - attn_map.min() + 1e-8)
-                return attn_map
-        
-        return np.zeros((7, 7), dtype=np.float32)
+    # Forward pass
+    with torch.no_grad():
+        _ = model(input_tensor)
+    
+    handle.remove()
+    
+    if not attention_weights:
+        return None
+    
+    # Get attention from CLS token (position 0) to all patches
+    attn = attention_weights[0]  # (B, num_heads, N, N)
+    # Average over heads, take CLS token row (index 0)
+    cls_attn = attn[0].mean(0)[0, 1:]  # (num_patches,) - exclude CLS->CLS
+    
+    # Reshape to spatial grid
+    num_patches = len(cls_attn)
+    grid_size = int(np.sqrt(num_patches))
+    
+    attn_map = cls_attn.numpy().reshape(grid_size, grid_size)
+    
+    # Normalize
+    attn_map = (attn_map - attn_map.min()) / (attn_map.max() - attn_map.min() + 1e-8)
+    
+    return attn_map
+
+
+def get_swin_gradient_map(model, input_tensor, img_size=224):
+    """Get gradient-based saliency map for Swin."""
+    input_tensor.requires_grad = True
+    
+    # Forward pass
+    output = model(input_tensor)
+    
+    # Take max prediction across all labels (most confident)
+    max_score = output.sigmoid().max()
+    
+    # Backward to get gradients
+    model.zero_grad()
+    max_score.backward()
+    
+    # Get gradient magnitude
+    gradients = input_tensor.grad.detach().cpu()[0]  # (C, H, W)
+    saliency = gradients.abs().sum(dim=0).numpy()  # (H, W)
+    
+    # Normalize
+    saliency = (saliency - saliency.min()) / (saliency.max() - saliency.min() + 1e-8)
+    
+    return saliency
 
 
 def _load_image_rgb(path: str, image_size: int) -> np.ndarray:
@@ -173,15 +141,17 @@ def run_attention_maps(
         logits = model(input_tensor)
         probs = torch.sigmoid(logits).cpu().numpy()[0]
     
-    # Extract attention maps
-    extractor = AttentionExtractor()
-    extractor.register_hooks(model, arch)
+    # Extract attention/saliency map
+    print(f"Extracting attention map for {arch}...", flush=True)
     
-    with torch.no_grad():
-        _ = model(input_tensor)  # Forward pass to capture attention
+    if arch == "vit_base":
+        attn_map = get_vit_attention_map(model, input_tensor, image_size)
+    else:  # swin_tiny
+        attn_map = get_swin_gradient_map(model, input_tensor, image_size)
     
-    attn_map = extractor.get_attention_map(arch, image_size)
-    extractor.remove_hooks()
+    if attn_map is None:
+        print("Failed to extract attention map!")
+        return
     
     # Upsample attention map to match image size
     attn_map_upsampled = cv2.resize(attn_map, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
@@ -199,8 +169,9 @@ def run_attention_maps(
     
     # Panel 1: attention overlay
     axes[1].imshow(rgb_img, cmap="gray")
-    im = axes[1].imshow(attn_map_upsampled, cmap="viridis", alpha=0.6)
-    axes[1].set_title("Attention Map", fontsize=12)
+    im = axes[1].imshow(attn_map_upsampled, cmap="jet", alpha=0.5)
+    method_name = "CLS Attention" if arch == "vit_base" else "Gradient Saliency"
+    axes[1].set_title(f"{method_name}", fontsize=12)
     axes[1].axis("off")
     
     # Add colorbar
