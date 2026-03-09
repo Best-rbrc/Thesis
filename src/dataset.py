@@ -55,6 +55,7 @@ class CheXpertDataset(Dataset):
         transform: transforms.Compose | None = None,
         frontal_only: bool = True,
         uncertainty_strategy: str = "u-ones",
+        per_label_strategies: dict[str, str] | None = None,
     ):
         """Initialise the CheXpert dataset.
 
@@ -67,16 +68,22 @@ class CheXpertDataset(Dataset):
                 Defaults to the 5 competition labels.
             transform: torchvision transforms to apply to each image.
             frontal_only: If True, keep only frontal-view images.
-            uncertainty_strategy: How to handle the uncertain label (-1).
+            uncertainty_strategy: Global fallback for uncertain labels (-1).
                 "u-ones"  → map -1 → 1  (treat uncertain as positive)
                 "u-zeros" → map -1 → 0  (treat uncertain as negative)
-                "u-ignore"→ map -1 → 0  (same as u-zeros for BCE; could be
-                    extended with masking later)
+                "u-ignore"→ map -1 → 0  (same as u-zeros for BCE)
+                "u-mask"  → keep as -1 so loss can mask it
+                "u-mixed" → use per_label_strategies dict per label
+            per_label_strategies: Per-label override dict, e.g.
+                {"Consolidation": "u-ones", "Cardiomegaly": "u-zeros"}.
+                Only used when uncertainty_strategy == "u-mixed" or as
+                label-level overrides on top of the global strategy.
         """
         self.data_dir = data_dir
         self.target_labels = target_labels or COMPETITION_LABELS
         self.transform = transform
         self.uncertainty_strategy = uncertainty_strategy
+        self.per_label_strategies = per_label_strategies or {}
 
         # ── Load & filter the CSV ──
         df = pd.read_csv(csv_path)
@@ -88,17 +95,25 @@ class CheXpertDataset(Dataset):
 
         # ── Handle uncertainty labels ──
         for col in self.target_labels:
-            if uncertainty_strategy == "u-ones":
+            # Per-label strategy overrides the global strategy for this column
+            col_strategy = self.per_label_strategies.get(col, uncertainty_strategy)
+
+            if col_strategy == "u-ones":
                 df[col] = df[col].fillna(0.0).replace(-1.0, 1.0)
-            elif uncertainty_strategy in ("u-zeros", "u-ignore"):
+            elif col_strategy in ("u-zeros", "u-ignore"):
                 df[col] = df[col].fillna(0.0).replace(-1.0, 0.0)
-            elif uncertainty_strategy == "u-mask":
+            elif col_strategy == "u-mask":
                 # NaN (not mentioned) → 0  (implicit negative)
                 # -1  (uncertain)     → kept as -1 so the loss function can mask it
                 df[col] = df[col].fillna(0.0)
+            elif col_strategy == "u-mixed":
+                raise ValueError(
+                    f'"u-mixed" is not valid as a per-label strategy for {col!r}. '
+                    "Use it only as the global strategy with per_label_strategies."
+                )
             else:
                 raise ValueError(
-                    f"Unknown uncertainty strategy: {uncertainty_strategy!r}. "
+                    f"Unknown uncertainty strategy {col_strategy!r} for label {col!r}. "
                     "Choose from: u-ones, u-zeros, u-ignore, u-mask"
                 )
 
@@ -127,6 +142,57 @@ class CheXpertDataset(Dataset):
 
         label = torch.tensor(self.labels[idx], dtype=torch.float32)
         return image, label
+
+
+# ─── Class-weight utility ────────────────────────────────────────────────────
+
+
+def compute_pos_weights(
+    csv_path: str,
+    target_labels: list[str],
+    frontal_only: bool = True,
+    per_label_strategies: dict[str, str] | None = None,
+    global_strategy: str = "u-zeros",
+) -> torch.Tensor:
+    """Compute pos_weight for BCEWithLogitsLoss from class frequencies.
+
+    pos_weight[i] = num_negative[i] / num_positive[i]
+
+    Uncertain labels (-1) are resolved using the same strategy as training so
+    the weight reflects the actual label distribution seen by the model.
+
+    Args:
+        csv_path: Path to the training CSV.
+        target_labels: Ordered list of label column names.
+        frontal_only: Keep only frontal views (should match training).
+        per_label_strategies: Per-label uncertainty strategies.
+        global_strategy: Fallback strategy for labels not in per_label_strategies.
+
+    Returns:
+        Float tensor of shape [num_labels] with pos_weight[i] >= 1.
+    """
+    per_label_strategies = per_label_strategies or {}
+    df = pd.read_csv(csv_path)
+    if frontal_only:
+        df = df[df["Frontal/Lateral"] == "Frontal"]
+
+    weights = []
+    for col in target_labels:
+        strategy = per_label_strategies.get(col, global_strategy)
+        series = df[col].fillna(0.0)
+        if strategy == "u-ones":
+            series = series.replace(-1.0, 1.0)
+        elif strategy in ("u-zeros", "u-ignore", "u-mask"):
+            # For pos_weight purposes treat uncertain as negative
+            series = series.replace(-1.0, 0.0)
+        n_pos = float((series > 0.5).sum())
+        n_neg = float((series <= 0.5).sum())
+        n_pos = max(n_pos, 1.0)  # avoid division by zero
+        weights.append(n_neg / n_pos)
+        print(f"  pos_weight [{col}]: {n_neg/n_pos:.2f}  "
+              f"(pos={int(n_pos):,}  neg={int(n_neg):,})")
+
+    return torch.tensor(weights, dtype=torch.float32)
 
 
 # ─── Transforms ─────────────────────────────────────────────────────────────
@@ -223,6 +289,8 @@ def build_dataloaders(
         train_tfm = get_train_transforms(image_size)
         valid_tfm = get_valid_transforms(image_size)
 
+    per_label_strategies = data_cfg.get("per_label_strategies", {})
+
     train_dataset = CheXpertDataset(
         csv_path=data_cfg["train_csv"],
         data_dir=data_cfg["data_dir"],
@@ -230,6 +298,7 @@ def build_dataloaders(
         transform=train_tfm,
         frontal_only=data_cfg["frontal_only"],
         uncertainty_strategy=data_cfg["uncertainty_strategy"],
+        per_label_strategies=per_label_strategies,
     )
     train_dataset.grayscale = use_cxr
 

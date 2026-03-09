@@ -12,22 +12,42 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from src.dataset import build_dataloaders
+from src.dataset import build_dataloaders, compute_pos_weights
 from src.model import build_model
 from src.utils import compute_aurocs, get_device, load_config, save_checkpoint
 
 
-def masked_bce_loss(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+def masked_bce_loss(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    pos_weight: torch.Tensor | None = None,
+) -> torch.Tensor:
     """BCE loss that ignores uncertain labels (stored as -1).
 
     Only positions where labels >= 0 (i.e. certain 0 or 1) contribute to the
     loss.  This prevents the model from being trained on ambiguous signal.
+
+    Args:
+        logits: Raw model outputs, shape [B, C].
+        labels: Ground-truth labels (0, 1, or -1 for uncertain), shape [B, C].
+        pos_weight: Optional per-class weight vector of shape [C].  When
+            provided each positive sample for class i is up-weighted by
+            pos_weight[i].  Mitigates class imbalance without resampling.
     """
     mask = (labels >= 0).float()
     labels_clean = labels.clamp(min=0.0)  # -1 → 0 at masked positions (won't count)
-    per_elem = F.binary_cross_entropy_with_logits(
-        logits, labels_clean, reduction="none"
-    )
+
+    if pos_weight is not None:
+        # F.binary_cross_entropy_with_logits expects pos_weight broadcastable
+        # to [B, C] — shape [C] works fine.
+        per_elem = F.binary_cross_entropy_with_logits(
+            logits, labels_clean, reduction="none",
+            pos_weight=pos_weight.to(logits.device),
+        )
+    else:
+        per_elem = F.binary_cross_entropy_with_logits(
+            logits, labels_clean, reduction="none"
+        )
     return (per_elem * mask).sum() / mask.sum().clamp(min=1.0)
 
 
@@ -162,8 +182,33 @@ def train(
         else:
             scheduler = CosineAnnealingLR(optimizer, T_max=total_epochs)
 
-    use_masked = cfg["data"].get("uncertainty_strategy") == "u-mask"
-    criterion = masked_bce_loss if use_masked else nn.BCEWithLogitsLoss()
+    global_u_strat = cfg["data"].get("uncertainty_strategy", "u-zeros")
+    per_label_strats = cfg["data"].get("per_label_strategies", {})
+    # Use masked loss whenever ANY label may carry -1 (u-mask strategy)
+    use_masked = (global_u_strat == "u-mask" or "u-mask" in per_label_strats.values())
+    use_pos_weight = cfg["training"].get("pos_weight", False)
+
+    pos_weight_tensor = None
+    if use_pos_weight:
+        print("Computing pos_weight from training labels...")
+        pos_weight_tensor = compute_pos_weights(
+            csv_path=cfg["data"]["train_csv"],
+            target_labels=target_labels,
+            frontal_only=cfg["data"].get("frontal_only", True),
+            per_label_strategies=cfg["data"].get("per_label_strategies", {}),
+            global_strategy=cfg["data"].get("uncertainty_strategy", "u-zeros"),
+        )
+
+    if use_masked:
+        criterion = lambda logits, labels: masked_bce_loss(
+            logits, labels, pos_weight=pos_weight_tensor
+        )
+    elif use_pos_weight:
+        criterion = nn.BCEWithLogitsLoss(
+            pos_weight=pos_weight_tensor.to(device)
+        )
+    else:
+        criterion = nn.BCEWithLogitsLoss()
 
     # ── Mixed precision (AMP) — only on CUDA ──
     use_amp = device.type == "cuda"
