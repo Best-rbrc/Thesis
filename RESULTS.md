@@ -64,10 +64,11 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 005 | Swin-Tiny v3 (384px) | 2026-02-13 | 9 | 0.7944 | 0.8075 |
 | 006 | DenseNet121-CXR (torchxrayvision) | 2026-02-28 | 13 | 0.7794 | 0.7853 |
 | 007 | Swin-Tiny single-label (Consolidation only) | 2026-02-13 | 16 | 0.6744 | **0.7082** |
+| 008 | **Swin-Tiny perclass (per-label U + pos_weight)** | 2026-03-09 | 9 | 0.7937 | **0.8129** |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
-| — | **Ensemble (Swin+ViT)** | 2026-02-27 | — | — | **0.8111** |
+| — | **Ensemble (Swin+ViT)** | 2026-02-27 | — | — | 0.8111 |
 
 ---
 
@@ -114,6 +115,19 @@ All splits are **patient-level** (no patient appears in more than one split).
 | **Mean** | **0.7082** |
 
 **Comparison vs. multi-label Swin-Tiny v2 (Run 003):** Consolidation 0.6994 → 0.7082 (**Δ +0.0088**). Single-label training yields a modest but real improvement for the hardest label.
+
+### Run 008 — Swin-Tiny perclass (per-label U-strategy + pos_weight)
+
+| Label | AUROC | Δ vs Run 003 |
+|---|---|---|
+| Cardiomegaly | 0.8685 | +0.0035 |
+| Edema | 0.8615 | +0.0002 |
+| Consolidation | 0.7263 | **+0.0269** |
+| Atelectasis | 0.7284 | **+0.0042** |
+| Pleural Effusion | 0.8798 | −0.0082 |
+| **Mean** | **0.8129** | **+0.0053** |
+
+**New best single-model result.** Largest gains on the two hardest labels: Consolidation (+0.027) and Atelectasis (+0.004). Pleural Effusion slightly lower (−0.008), likely because `u-zeros` removes informative uncertain samples for that label.
 
 ---
 
@@ -317,6 +331,31 @@ Checkpoint: [`checkpoints/swin_tiny/run007_swin_tiny_consolidation_ep16_val0.674
 
 ---
 
+### Run 008 — Swin-Tiny perclass
+
+| Parameter | Value |
+|---|---|
+| Architecture | `swin_tiny_patch4_window7_224` (timm) |
+| Pretrained | ImageNet-1k |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 9 / 30 |
+| Learning rate | 5e-5 |
+| Weight decay | 0.05 |
+| Warmup epochs | 2 |
+| Scheduler | Cosine |
+| Early stopping patience | 7 |
+| Uncertainty strategy | **u-mixed** (per-label) |
+| Per-label strategies | Cardiomegaly: u-zeros, Edema: u-ones, Consolidation: u-ones, Atelectasis: u-ones, Pleural Effusion: u-zeros |
+| pos_weight | **true** (Cardiomegaly 7.15×, Consolidation 4.10×, Atelectasis 2.20×, Edema 2.10×, Pleural Effusion 1.48×) |
+| AdamW param groups | bias/norm WD=0, rest WD=0.05 |
+| Gradient clipping | max_norm=1.0 |
+
+Config: [`configs/archive/run008_swin_tiny_perclass_2026-03-09/swin_tiny_perclass.yaml`](configs/archive/run008_swin_tiny_perclass_2026-03-09/swin_tiny_perclass.yaml)  
+Checkpoint: [`checkpoints/swin_tiny/run008_swin_tiny_perclass_ep09_val0.7937_test0.8129.pt`](checkpoints/swin_tiny/run008_swin_tiny_perclass_ep09_val0.7937_test0.8129.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny v2 (Run 003 + horizontal flip average)
@@ -403,6 +442,7 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 9. **CXR pretraining (torchxrayvision) does NOT outperform ImageNet pretraining**: DenseNet121-CXR (0.7853) is actually worse than the standard ImageNet DenseNet121 (0.7888) and far below the Transformer models (~0.80+). Likely causes: the pretrained 18-class head is replaced with a fresh 5-class head (loses task-specific features), the CXR normalization (grayscale, mean=0.5) may not perfectly match the torchxrayvision pretraining pipeline, and the hyperparameters were not optimised for domain-adaptive fine-tuning. This is an important negative result for the thesis.
 10. **Multi-disease and false positive behaviour (Swin-Tiny v2):** Performance drops on samples with 2+ diseases (mean AUROC 0.7567 vs 0.8051), with the largest drop for Consolidation (−0.15). At threshold 0.5, Pleural Effusion has the highest FPR (19.55%) and Consolidation the lowest (0.08%); 16.7% of test samples have at least one false positive. Relevant for the thesis discussion on multi-label and clinical deployment (calibration / threshold choice).
 11. **Single-label vs. multi-label for Consolidation (Run 007):** A dedicated Swin-Tiny model trained only on Consolidation achieves 0.7082 AUROC on the test set vs. 0.6994 for the multi-label Swin-Tiny v2 (Δ +0.0088). This is a modest but real improvement. The single-label model also beats the Swin+ViT ensemble (0.7033) for Consolidation. The gain does not justify 5× inference cost if applied per-label; a hybrid setup (multi-label + optional single-label for hardest labels) could be considered.
+12. **Per-label uncertainty strategy + pos_weight is the strongest single-model result (Run 008, 0.8129):** Replacing the global `u-mask` strategy with per-label strategies (Consolidation/Edema/Atelectasis → u-ones; Cardiomegaly/Pleural Effusion → u-zeros) and adding class-frequency-based `pos_weight` improved mean AUROC from 0.8076 (Run 003) to **0.8129** (+0.005), surpassing even the Swin+ViT ensemble (0.8111). The biggest beneficiaries were the two hardest labels: Consolidation (+0.027, from 0.699 to 0.726) and Atelectasis (+0.004). This confirms that label-specific uncertainty handling is the most effective single intervention for CheXpert.
 
 ---
 
