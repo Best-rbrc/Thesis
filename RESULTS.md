@@ -68,6 +68,7 @@ All splits are **patient-level** (no patient appears in more than one split).
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
+| — | **Swin-Tiny perclass + TTA** | 2026-03-09 | — | — | **0.8146** |
 | — | **Ensemble (Swin+ViT)** | 2026-02-27 | — | — | 0.8111 |
 
 ---
@@ -357,6 +358,21 @@ Checkpoint: [`checkpoints/swin_tiny/run008_swin_tiny_perclass_ep09_val0.7937_tes
 ---
 
 ## Post-hoc Evaluation (no retraining)
+
+### TTA — Swin-Tiny perclass (Run 008 + horizontal flip average)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8685 | 0.8704 | +0.0019 |
+| Edema | 0.8615 | 0.8626 | +0.0011 |
+| Consolidation | 0.7263 | 0.7282 | +0.0019 |
+| Atelectasis | 0.7284 | 0.7304 | +0.0020 |
+| Pleural Effusion | 0.8798 | 0.8812 | +0.0014 |
+| **Mean** | **0.8129** | **0.8146** | **+0.0017** |
+
+**Current best single-model result with TTA.** Consistent improvement across all labels.
+
+---
 
 ### TTA — Swin-Tiny v2 (Run 003 + horizontal flip average)
 
