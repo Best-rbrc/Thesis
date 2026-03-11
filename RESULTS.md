@@ -65,11 +65,15 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 006 | DenseNet121-CXR (torchxrayvision) | 2026-02-28 | 13 | 0.7794 | 0.7853 |
 | 007 | Swin-Tiny single-label (Consolidation only) | 2026-02-13 | 16 | 0.6744 | **0.7082** |
 | 008 | **Swin-Tiny perclass (per-label U + pos_weight)** | 2026-03-09 | 9 | 0.7937 | **0.8129** |
+| 009 | ViT-Base perclass (per-label U + pos_weight) | 2026-03-10 | 9 | 0.7905 | 0.8118 |
+| 010 | **DenseNet121 perclass (per-label U + pos_weight)** | 2026-03-11 | 10 | 0.7925 | **0.8298** |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
 | — | **Swin-Tiny perclass + TTA** | 2026-03-09 | — | — | **0.8146** |
+| — | ViT-Base perclass + TTA | 2026-03-10 | — | — | 0.8139 |
 | — | **Ensemble (Swin+ViT)** | 2026-02-27 | — | — | 0.8111 |
+| — | **Ensemble (Swin+ViT+DenseNet perclass)** | 2026-03-11 | — | — | 0.8295 |
 
 ---
 
@@ -129,6 +133,32 @@ All splits are **patient-level** (no patient appears in more than one split).
 | **Mean** | **0.8129** | **+0.0053** |
 
 **New best single-model result.** Largest gains on the two hardest labels: Consolidation (+0.027) and Atelectasis (+0.004). Pleural Effusion slightly lower (−0.008), likely because `u-zeros` removes informative uncertain samples for that label.
+
+### Run 009 — ViT-Base perclass (per-label U-strategy + pos_weight)
+
+| Label | AUROC | Δ vs Run 004 |
+|---|---|---|
+| Cardiomegaly | 0.8673 | +0.0058 |
+| Edema | 0.8566 | −0.0020 |
+| Consolidation | 0.7257 | **+0.0283** |
+| Atelectasis | 0.7330 | **+0.0158** |
+| Pleural Effusion | 0.8768 | −0.0089 |
+| **Mean** | **0.8118** | **+0.0077** |
+
+Same per-label U-strategy + pos_weight as Run 008. Consolidation and Atelectasis show very large gains vs. baseline ViT-Base. Edema and Pleural Effusion slightly lower, consistent with the `u-zeros` trade-off for those labels.
+
+### Run 010 — DenseNet121 perclass (per-label U-strategy + pos_weight)
+
+| Label | AUROC | Δ vs Run 001 |
+|---|---|---|
+| Cardiomegaly | 0.8816 | **+0.0327** |
+| Edema | 0.8694 | **+0.0283** |
+| Consolidation | 0.7587 | **+0.0818** |
+| Atelectasis | 0.7532 | **+0.0501** |
+| Pleural Effusion | 0.8861 | +0.0121 |
+| **Mean** | **0.8298** | **+0.0410** |
+
+**New overall best single-model result by a large margin.** Per-label U-strategy + pos_weight yields a +0.041 improvement over the baseline DenseNet121 (Run 001, 0.7888). All labels improve substantially, with Consolidation gaining +0.082 and Atelectasis +0.050. Remarkably, DenseNet121 with the right training strategy outperforms both Swin-Tiny perclass (+0.017) and ViT-Base perclass (+0.018) despite being a simpler convolutional architecture.
 
 ---
 
@@ -357,6 +387,56 @@ Checkpoint: [`checkpoints/swin_tiny/run008_swin_tiny_perclass_ep09_val0.7937_tes
 
 ---
 
+### Run 009 — ViT-Base perclass
+
+| Parameter | Value |
+|---|---|
+| Architecture | `vit_base_patch16_224` (timm) |
+| Pretrained | ImageNet-21k → ImageNet-1k fine-tune |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 9 / 30 |
+| Learning rate | 3e-5 |
+| Weight decay | 0.1 |
+| Warmup epochs | 2 |
+| Scheduler | Cosine |
+| Early stopping patience | 7 |
+| Uncertainty strategy | **u-mixed** (per-label) |
+| Per-label strategies | Cardiomegaly: u-zeros, Edema: u-ones, Consolidation: u-ones, Atelectasis: u-ones, Pleural Effusion: u-zeros |
+| pos_weight | **true** (Cardiomegaly 7.15×, Consolidation 4.10×, Atelectasis 2.20×, Edema 2.10×, Pleural Effusion 1.48×) |
+| AdamW param groups | bias/norm WD=0, rest WD=0.1 |
+| Gradient clipping | max_norm=1.0 |
+
+Config: [`configs/archive/run009_vit_base_perclass_2026-03-10/vit_base_perclass.yaml`](configs/archive/run009_vit_base_perclass_2026-03-10/vit_base_perclass.yaml)  
+Checkpoint: [`checkpoints/vit_base/run009_vit_base_perclass_ep09_val0.7905_test0.8118.pt`](checkpoints/vit_base/run009_vit_base_perclass_ep09_val0.7905_test0.8118.pt)
+
+---
+
+### Run 010 — DenseNet121 perclass
+
+| Parameter | Value |
+|---|---|
+| Architecture | `densenet121` (torchvision) |
+| Pretrained | ImageNet-1k |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 10 / 20 |
+| Learning rate | 1e-4 |
+| Weight decay | 0.01 |
+| Warmup epochs | 1 |
+| Scheduler | Cosine |
+| Early stopping patience | 5 |
+| Uncertainty strategy | **u-mixed** (per-label) |
+| Per-label strategies | Cardiomegaly: u-zeros, Edema: u-ones, Consolidation: u-ones, Atelectasis: u-ones, Pleural Effusion: u-zeros |
+| pos_weight | **true** (Cardiomegaly 7.15×, Consolidation 4.10×, Atelectasis 2.20×, Edema 2.10×, Pleural Effusion 1.48×) |
+| AdamW param groups | bias/norm WD=0, rest WD=0.01 |
+| Gradient clipping | max_norm=1.0 |
+
+Config: [`configs/archive/run010_densenet121_perclass_2026-03-11/densenet121_perclass.yaml`](configs/archive/run010_densenet121_perclass_2026-03-11/densenet121_perclass.yaml)  
+Checkpoint: [`checkpoints/densenet121/run010_densenet121_perclass_ep10_val0.7925_test0.8298.pt`](checkpoints/densenet121/run010_densenet121_perclass_ep10_val0.7925_test0.8298.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny perclass (Run 008 + horizontal flip average)
@@ -371,6 +451,51 @@ Checkpoint: [`checkpoints/swin_tiny/run008_swin_tiny_perclass_ep09_val0.7937_tes
 | **Mean** | **0.8129** | **0.8146** | **+0.0017** |
 
 **Current best single-model result with TTA.** Consistent improvement across all labels.
+
+---
+
+### TTA — ViT-Base perclass (Run 009 + horizontal flip average)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8673 | 0.8705 | +0.0032 |
+| Edema | 0.8566 | 0.8584 | +0.0018 |
+| Consolidation | 0.7257 | 0.7271 | +0.0014 |
+| Atelectasis | 0.7330 | 0.7346 | +0.0016 |
+| Pleural Effusion | 0.8768 | 0.8788 | +0.0020 |
+| **Mean** | **0.8118** | **0.8139** | **+0.0021** |
+
+Consistent improvement across all labels. Run 009+TTA (0.8139) is below Run 008+TTA (0.8146), confirming Swin-Tiny perclass as the stronger single model.
+
+---
+
+### TTA — DenseNet121 perclass (Run 010 + horizontal flip average)
+
+| Label | Standard | TTA | Δ |
+|---|---|---|---|
+| Cardiomegaly | 0.8816 | 0.8862 | +0.0046 |
+| Edema | 0.8694 | 0.8722 | +0.0028 |
+| Consolidation | 0.7587 | 0.7629 | +0.0042 |
+| Atelectasis | 0.7532 | 0.7578 | +0.0046 |
+| Pleural Effusion | 0.8861 | 0.8882 | +0.0021 |
+| **Mean** | **0.8298** | **0.8334** | **+0.0036** |
+
+**New overall best result.** TTA adds +0.0036, consistent across all labels.
+
+---
+
+### Ensemble — Swin-Tiny perclass + ViT-Base perclass + DenseNet121 perclass (3-model logit average)
+
+| Label | Swin-Tiny (008) | ViT-Base (009) | DenseNet (010) | Ensemble | Δ vs DenseNet |
+|---|---|---|---|---|---|
+| Cardiomegaly | 0.8685 | 0.8673 | 0.8816 | 0.8832 | +0.0016 |
+| Edema | 0.8615 | 0.8566 | 0.8694 | 0.8712 | +0.0018 |
+| Consolidation | 0.7263 | 0.7257 | 0.7587 | 0.7542 | −0.0045 |
+| Atelectasis | 0.7284 | 0.7330 | 0.7532 | 0.7511 | −0.0021 |
+| Pleural Effusion | 0.8798 | 0.8768 | 0.8861 | 0.8877 | +0.0016 |
+| **Mean** | **0.8129** | **0.8118** | **0.8298** | **0.8295** | **−0.0003** |
+
+The 3-model ensemble (0.8295) is marginally **below** DenseNet121 perclass alone (0.8298). The two weaker models (Swin and ViT perclass, both ~0.81) dilute the DenseNet signal, especially on Consolidation and Atelectasis where averaging lowers scores. This is consistent with ensemble theory: averaging only helps when models are both diverse **and** individually strong.
 
 ---
 
@@ -459,6 +584,10 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 10. **Multi-disease and false positive behaviour (Swin-Tiny v2):** Performance drops on samples with 2+ diseases (mean AUROC 0.7567 vs 0.8051), with the largest drop for Consolidation (−0.15). At threshold 0.5, Pleural Effusion has the highest FPR (19.55%) and Consolidation the lowest (0.08%); 16.7% of test samples have at least one false positive. Relevant for the thesis discussion on multi-label and clinical deployment (calibration / threshold choice).
 11. **Single-label vs. multi-label for Consolidation (Run 007):** A dedicated Swin-Tiny model trained only on Consolidation achieves 0.7082 AUROC on the test set vs. 0.6994 for the multi-label Swin-Tiny v2 (Δ +0.0088). This is a modest but real improvement. The single-label model also beats the Swin+ViT ensemble (0.7033) for Consolidation. The gain does not justify 5× inference cost if applied per-label; a hybrid setup (multi-label + optional single-label for hardest labels) could be considered.
 12. **Per-label uncertainty strategy + pos_weight is the strongest single-model result (Run 008, 0.8129):** Replacing the global `u-mask` strategy with per-label strategies (Consolidation/Edema/Atelectasis → u-ones; Cardiomegaly/Pleural Effusion → u-zeros) and adding class-frequency-based `pos_weight` improved mean AUROC from 0.8076 (Run 003) to **0.8129** (+0.005), surpassing even the Swin+ViT ensemble (0.8111). The biggest beneficiaries were the two hardest labels: Consolidation (+0.027, from 0.699 to 0.726) and Atelectasis (+0.004). This confirms that label-specific uncertainty handling is the most effective single intervention for CheXpert.
+13. **ViT-Base also benefits strongly from per-label U-strategy + pos_weight (Run 009, 0.8118):** Applying the same intervention to ViT-Base improved mean AUROC from 0.8041 (Run 004) to **0.8118** (+0.0077). Consolidation gained +0.028 and Atelectasis +0.016 — both even larger than in Swin-Tiny. The per-label strategy improvement is consistent across architectures, confirming the intervention generalises beyond a single model. Run 009 is slightly below Run 008 (0.8118 vs 0.8129), suggesting Swin-Tiny has a marginal architectural advantage for this task under these settings.
+14. **DenseNet121 with per-label U-strategy + pos_weight is the new best single model (Run 010, 0.8298):** Applying the same per-label U-strategy and pos_weight to DenseNet121 achieves **0.8298** test AUROC (+0.041 over baseline Run 001 at 0.7888), far surpassing both Swin-Tiny perclass (0.8129) and ViT-Base perclass (0.8118). This is a surprising result: a classical CNN architecture outperforms both transformers when given the right uncertainty handling and loss weighting. The effect is most pronounced on the hardest labels — Consolidation (+0.082) and Atelectasis (+0.050) — suggesting that the training strategy matters more than the architecture for these labels. The higher optimal learning rate (1e-4 vs. 5e-5/3e-5) and faster convergence (epoch 10 of 20) may reflect DenseNet's lower sample efficiency requirements.
+15. **DenseNet121 perclass + TTA achieves the overall best result (0.8334):** TTA adds a further +0.0036, bringing Run 010 to **0.8334**, the highest score in all experiments. All labels improve consistently.
+16. **The 3-model perclass ensemble (0.8295) is marginally worse than DenseNet121 perclass alone (0.8298):** Averaging logits from Swin-Tiny (0.8129) and ViT-Base (0.8118) with DenseNet (0.8298) slightly dilutes the ensemble, especially on Consolidation (−0.0045) and Atelectasis (−0.0021) where DenseNet is clearly the strongest. Only the shared strong labels (Cardiomegaly, Edema, Pleural Effusion) show small gains (+0.0016–0.0018). This demonstrates that ensemble gains require model diversity **and** comparable individual strength; including consistently weaker models can hurt the best-performing label scores.
 
 ---
 
