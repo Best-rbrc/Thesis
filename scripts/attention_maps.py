@@ -22,7 +22,6 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn.functional as F
 from PIL import Image
 
 from src.dataset import get_valid_transforms
@@ -56,7 +55,7 @@ def get_vit_attention_map(model, input_tensor, img_size=224):
     handle.remove()
     
     if not attention_weights:
-        return None
+        raise RuntimeError("Failed to capture attention weights from ViT. Hook may not have been triggered.")
     
     # Get attention from CLS token (position 0) to all patches
     attn = attention_weights[0]  # (B, num_heads, N, N)
@@ -75,27 +74,34 @@ def get_vit_attention_map(model, input_tensor, img_size=224):
     return attn_map
 
 
-def get_swin_gradient_map(model, input_tensor, img_size=224):
-    """Get gradient-based saliency map for Swin."""
-    input_tensor.requires_grad = True
-    
-    # Forward pass
-    output = model(input_tensor)
-    
-    # Take max prediction across all labels (most confident)
-    max_score = output.sigmoid().max()
-    
-    # Backward to get gradients
-    model.zero_grad()
-    max_score.backward()
-    
-    # Get gradient magnitude
-    gradients = input_tensor.grad.detach().cpu()[0]  # (C, H, W)
+def get_swin_gradient_map(model, input_tensor, target_idx: int, smooth_samples: int = 12):
+    """Get SmoothGrad saliency map for Swin (less speckle than raw input gradients)."""
+    base = input_tensor.detach()
+    grad_accum = torch.zeros_like(base)
+
+    noise_std = max(float(base.std().item()) * 0.10, 1e-6)
+
+    for _ in range(smooth_samples):
+        noisy = (base + torch.randn_like(base) * noise_std).requires_grad_(True)
+        output = model(noisy)
+        target_score = output[:, target_idx].sum()
+
+        model.zero_grad(set_to_none=True)
+        target_score.backward()
+        grad_accum += noisy.grad.detach()
+
+    gradients = (grad_accum / smooth_samples).detach().cpu()[0]  # (C, H, W)
     saliency = gradients.abs().sum(dim=0).numpy()  # (H, W)
-    
-    # Normalize
+
+    # Robust normalization (ignore extreme outliers)
+    p_low, p_high = np.percentile(saliency, [5, 99])
+    saliency = np.clip(saliency, p_low, p_high)
     saliency = (saliency - saliency.min()) / (saliency.max() - saliency.min() + 1e-8)
-    
+
+    # Light spatial smoothing for cleaner visualization
+    saliency = cv2.GaussianBlur(saliency, (0, 0), sigmaX=2.0, sigmaY=2.0)
+    saliency = (saliency - saliency.min()) / (saliency.max() - saliency.min() + 1e-8)
+
     return saliency
 
 
@@ -140,18 +146,23 @@ def run_attention_maps(
     with torch.no_grad():
         logits = model(input_tensor)
         probs = torch.sigmoid(logits).cpu().numpy()[0]
+    target_idx = int(np.argmax(probs))
+    target_label = target_labels[target_idx]
     
     # Extract attention/saliency map
     print(f"Extracting attention map for {arch}...", flush=True)
     
-    if arch == "vit_base":
-        attn_map = get_vit_attention_map(model, input_tensor, image_size)
-    else:  # swin_tiny
-        attn_map = get_swin_gradient_map(model, input_tensor, image_size)
+    try:
+        if arch == "vit_base":
+            attn_map = get_vit_attention_map(model, input_tensor, image_size)
+        else:  # swin_tiny
+            attn_map = get_swin_gradient_map(model, input_tensor, target_idx=target_idx)
+    except RuntimeError as e:
+        print(f"❌ Error: {e}", flush=True)
+        raise
     
     if attn_map is None:
-        print("Failed to extract attention map!")
-        return
+        raise RuntimeError(f"Failed to extract attention map for {arch}. Map is None after extraction.")
     
     # Upsample attention map to match image size
     attn_map_upsampled = cv2.resize(attn_map, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
@@ -170,7 +181,7 @@ def run_attention_maps(
     # Panel 1: attention overlay
     axes[1].imshow(rgb_img, cmap="gray")
     im = axes[1].imshow(attn_map_upsampled, cmap="jet", alpha=0.5)
-    method_name = "CLS Attention" if arch == "vit_base" else "Gradient Saliency"
+    method_name = "CLS Attention" if arch == "vit_base" else f"SmoothGrad Saliency ({target_label})"
     axes[1].set_title(f"{method_name}", fontsize=12)
     axes[1].axis("off")
     

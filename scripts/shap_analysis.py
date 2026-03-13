@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from PIL import Image
 from scipy.stats import pearsonr
 
@@ -37,6 +38,32 @@ import shap
 from src.dataset import CheXpertDataset, get_cxr_valid_transforms, get_valid_transforms
 from src.model import build_model
 from src.utils import get_device, load_config
+
+
+def _disable_inplace_ops(module: nn.Module) -> None:
+    """Disable in-place ops (e.g., ReLU(inplace=True)) to avoid SHAP backward-hook view errors."""
+    for submodule in module.modules():
+        if hasattr(submodule, "inplace"):
+            try:
+                submodule.inplace = False
+            except Exception:
+                pass
+
+
+class DenseNetNoInplaceWrapper(nn.Module):
+    """Wrap DenseNet-like models with a non-inplace forward for SHAP compatibility."""
+
+    def __init__(self, base_model: nn.Module):
+        super().__init__()
+        self.base = base_model
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = self.base.features(x)
+        out = F.relu(features, inplace=False)
+        out = F.adaptive_avg_pool2d(out, (1, 1))
+        out = torch.flatten(out, 1)
+        out = self.base.classifier(out)
+        return out
 
 
 def _load_image_rgb(path: str, image_size: int) -> np.ndarray:
@@ -83,6 +110,7 @@ def get_background_samples(cfg: dict, n_samples: int = 100) -> torch.Tensor:
     
     # Load images
     samples = []
+    failed_count = 0
     for idx in indices:
         raw_path = df.iloc[idx]["Path"]
         data_dir = data_cfg["data_dir"]
@@ -102,8 +130,15 @@ def get_background_samples(cfg: dict, n_samples: int = 100) -> torch.Tensor:
             tensor = tfm(img)
             samples.append(tensor)
         except Exception as e:
-            print(f"Warning: Failed to load {img_path}: {e}")
+            print(f"⚠️ Background sample failed [{idx}]: {e}", flush=True)
+            failed_count += 1
             continue
+    
+    if not samples:
+        raise RuntimeError(f"Failed to load any background samples (tried {n_samples}, failed {failed_count})")
+    
+    if failed_count > 0:
+        print(f"⚠️ Loaded {len(samples)}/{n_samples} background samples ({failed_count} failed)", flush=True)
     
     return torch.stack(samples)
 
@@ -127,7 +162,10 @@ def randomize_model_cascade(model: nn.Module, arch: str, level: float):
         name, param = params[i]
         with torch.no_grad():
             if "weight" in name:
-                nn.init.xavier_uniform_(param)
+                if param.ndim >= 2:
+                    nn.init.xavier_uniform_(param)
+                else:
+                    nn.init.normal_(param, mean=0.0, std=0.02)
             elif "bias" in name:
                 nn.init.zeros_(param)
 
@@ -138,26 +176,56 @@ def compute_shap_for_label(
     background: torch.Tensor,
     target_idx: int,
     device: torch.device,
+    arch: str,
 ) -> np.ndarray:
     """Compute SHAP values for a single output label."""
     # Wrap model to output single class
     wrapped_model = SingleOutputWrapper(model, target_idx)
-    
-    # Create SHAP explainer - use DeepExplainer which is more robust
-    explainer = shap.DeepExplainer(wrapped_model, background)
-    
-    # Compute SHAP values
-    shap_values = explainer.shap_values(input_tensor)
-    
-    # shap_values shape: (B, C, H, W) or just (C, H, W)
-    if isinstance(shap_values, list):
-        shap_values = shap_values[0]  # DeepExplainer might return list
-    
-    # Ensure correct shape
-    if len(shap_values.shape) == 4:
-        shap_agg = np.abs(shap_values).sum(axis=1)[0]  # (B, C, H, W) -> (H, W)
+
+    # Explainer strategy:
+    # - Transformers: GradientExplainer is more stable with timm modules.
+    # - CNNs: try DeepExplainer first, fallback to GradientExplainer on failure.
+    if arch in ("swin_tiny", "vit_base"):
+        explainer = shap.GradientExplainer(wrapped_model, background)
+        shap_values = explainer.shap_values(input_tensor)
     else:
-        shap_agg = np.abs(shap_values).sum(axis=0)  # (C, H, W) -> (H, W)
+        try:
+            explainer = shap.DeepExplainer(wrapped_model, background)
+            shap_values = explainer.shap_values(input_tensor, check_additivity=False)
+        except Exception as e:
+            print(f"⚠️ DeepExplainer failed for label {target_idx} ({arch}): {e}", flush=True)
+            print("   Falling back to GradientExplainer.", flush=True)
+            explainer = shap.GradientExplainer(wrapped_model, background)
+            shap_values = explainer.shap_values(input_tensor)
+    
+    # shap_values shape can vary by explainer/model; normalize robustly.
+    if isinstance(shap_values, list):
+        shap_values = shap_values[0]
+
+    sv = np.array(shap_values)
+    sv = np.squeeze(sv)
+
+    if sv.ndim == 4:
+        # Possible layouts: (B,C,H,W) or (B,H,W,C)
+        if sv.shape[0] == input_tensor.shape[0] and sv.shape[1] in (1, 3):
+            sv = sv[0]  # -> (C,H,W)
+        elif sv.shape[0] == input_tensor.shape[0] and sv.shape[-1] in (1, 3):
+            sv = np.transpose(sv[0], (2, 0, 1))  # -> (C,H,W)
+        else:
+            sv = sv[0]
+
+    if sv.ndim == 3:
+        # Channel-first (C,H,W) or channel-last (H,W,C)
+        if sv.shape[0] in (1, 3):
+            shap_agg = np.abs(sv).sum(axis=0)
+        elif sv.shape[-1] in (1, 3):
+            shap_agg = np.abs(sv).sum(axis=-1)
+        else:
+            shap_agg = np.abs(sv).mean(axis=0)
+    elif sv.ndim == 2:
+        shap_agg = np.abs(sv)
+    else:
+        raise RuntimeError(f"Unexpected SHAP output shape for label {target_idx}: {sv.shape}")
     
     # Normalize to [0, 1]
     shap_min, shap_max = shap_agg.min(), shap_agg.max()
@@ -182,7 +250,8 @@ def run_shap_analysis(
     
     # SHAP has issues with MPS on Apple Silicon - use CPU instead
     if device.type == "mps":
-        print("Note: Using CPU instead of MPS for SHAP compatibility", flush=True)
+        print("\n⚠️ SHAP is incompatible with MPS (Apple Silicon). Falling back to CPU.", flush=True)
+        print("   This will be slower (10-30 min per image), but necessary for stability.", flush=True)
         device = torch.device("cpu")
     
     data_cfg = cfg["data"]
@@ -196,6 +265,9 @@ def run_shap_analysis(
     model = build_model(cfg).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
+    _disable_inplace_ops(model)
+    if arch.startswith("densenet"):
+        model = DenseNetNoInplaceWrapper(model).to(device)
     model.eval()
     print(f"Loaded {arch} from epoch {ckpt['epoch']}", flush=True)
     
@@ -229,7 +301,7 @@ def run_shap_analysis(
     print(f"Computing SHAP values for {n_labels} labels...", flush=True)
     
     for i in range(n_labels):
-        shap_map = compute_shap_for_label(model, input_tensor, background, i, device)
+        shap_map = compute_shap_for_label(model, input_tensor, background, i, device, arch)
         shap_maps.append(shap_map)
         print(f"  [{i+1}/{n_labels}] {target_labels[i]}: done", flush=True)
     
@@ -283,7 +355,7 @@ def run_shap_analysis(
             
             # Compute SHAP values with randomized model
             for i, label in enumerate(target_labels):
-                shap_random = compute_shap_for_label(model_random, input_tensor, background, i, device)
+                shap_random = compute_shap_for_label(model_random, input_tensor, background, i, device, arch)
                 
                 # Compute correlation with original SHAP values
                 # Flatten both arrays
