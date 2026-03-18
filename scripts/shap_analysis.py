@@ -40,6 +40,21 @@ from src.model import build_model
 from src.utils import get_device, load_config
 
 
+def _format_gt_value(v) -> str:
+    """Format GT value as 0/1/U (uncertain)."""
+    if v is None:
+        return "N/A"
+    if isinstance(v, float) and np.isnan(v):
+        return "U"
+    try:
+        fv = float(v)
+    except Exception:
+        return "N/A"
+    if fv < 0:
+        return "U"
+    return "1" if fv >= 0.5 else "0"
+
+
 def _disable_inplace_ops(module: nn.Module) -> None:
     """Disable in-place ops (e.g., ReLU(inplace=True)) to avoid SHAP backward-hook view errors."""
     for submodule in module.modules():
@@ -244,6 +259,7 @@ def run_shap_analysis(
     output_dir: str,
     n_background: int = 100,
     run_sanity_check: bool = False,
+    true_labels: list[float] | None = None,
 ) -> None:
     cfg = load_config(config_path)
     device = get_device(cfg)
@@ -317,7 +333,8 @@ def run_shap_analysis(
     for i, label in enumerate(target_labels):
         axes[i + 1].imshow(rgb_img, cmap="gray")
         axes[i + 1].imshow(shap_maps[i], cmap="hot", alpha=0.6)
-        axes[i + 1].set_title(f"{label}\np={probs[i]:.3f}", fontsize=10)
+        gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
+        axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
         axes[i + 1].axis("off")
     
     fig.suptitle(f"SHAP Analysis — {arch}", fontsize=13, y=1.02)
@@ -421,6 +438,8 @@ if __name__ == "__main__":
     parser.add_argument("--run-sanity-check", action="store_true", help="Run model randomization sanity check.")
     args = parser.parse_args()
     
+    true_labels = None
+
     if args.image:
         image_path = args.image
     else:
@@ -431,6 +450,8 @@ if __name__ == "__main__":
         if data_cfg.get("frontal_only", False):
             df = df[df["Frontal/Lateral"] == "Frontal"].reset_index(drop=True)
         raw_path = df.iloc[args.index]["Path"]
+        target_labels = cfg["labels"]["target_labels"]
+        true_labels = [df.iloc[args.index].get(lbl, np.nan) for lbl in target_labels]
         data_dir = data_cfg["data_dir"]
         if os.path.isabs(data_dir):
             rel = raw_path.split("/", 1)[1] if "/" in raw_path else raw_path
@@ -446,4 +467,5 @@ if __name__ == "__main__":
         args.output,
         args.n_background,
         args.run_sanity_check,
+        true_labels=true_labels,
     )

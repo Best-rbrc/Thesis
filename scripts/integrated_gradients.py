@@ -34,6 +34,21 @@ from src.model import build_model
 from src.utils import get_device, load_config
 
 
+def _format_gt_value(v) -> str:
+    """Format GT value as 0/1/U (uncertain)."""
+    if v is None:
+        return "N/A"
+    if isinstance(v, float) and np.isnan(v):
+        return "U"
+    try:
+        fv = float(v)
+    except Exception:
+        return "N/A"
+    if fv < 0:
+        return "U"
+    return "1" if fv >= 0.5 else "0"
+
+
 def _load_image_rgb(path: str, image_size: int) -> np.ndarray:
     """Load an image and return it as a float32 RGB array in [0, 1]."""
     img = Image.open(path).convert("RGB")
@@ -60,6 +75,7 @@ def run_integrated_gradients(
     image_path: str,
     output_dir: str,
     n_steps: int = 50,
+    true_labels: list[float] | None = None,
 ) -> None:
     cfg = load_config(config_path)
     device = get_device(cfg)
@@ -151,7 +167,8 @@ def run_integrated_gradients(
         axes[i + 1].imshow(rgb_img, cmap="gray")
         # Overlay attribution heatmap
         im = axes[i + 1].imshow(attributions[i], cmap="hot", alpha=0.6)
-        axes[i + 1].set_title(f"{label}\np={probs[i]:.3f}", fontsize=10)
+        gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
+        axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
         axes[i + 1].axis("off")
     
     fig.suptitle(f"Integrated Gradients — {arch}", fontsize=13, y=1.02)
@@ -180,6 +197,8 @@ if __name__ == "__main__":
     parser.add_argument("--n-steps", type=int, default=50, help="Number of steps for IG approximation.")
     args = parser.parse_args()
     
+    true_labels = None
+
     if args.image:
         image_path = args.image
     else:
@@ -191,6 +210,8 @@ if __name__ == "__main__":
         if data_cfg.get("frontal_only", False):
             df = df[df["Frontal/Lateral"] == "Frontal"].reset_index(drop=True)
         raw_path = df.iloc[args.index]["Path"]
+        target_labels = cfg["labels"]["target_labels"]
+        true_labels = [df.iloc[args.index].get(lbl, np.nan) for lbl in target_labels]
         data_dir = data_cfg["data_dir"]
         if os.path.isabs(data_dir):
             rel = raw_path.split("/", 1)[1] if "/" in raw_path else raw_path
@@ -199,4 +220,11 @@ if __name__ == "__main__":
             image_path = os.path.join(os.path.dirname(data_dir), raw_path)
         print(f"Test image [{args.index}]: {image_path}")
     
-    run_integrated_gradients(args.config, args.checkpoint, image_path, args.output, args.n_steps)
+    run_integrated_gradients(
+        args.config,
+        args.checkpoint,
+        image_path,
+        args.output,
+        args.n_steps,
+        true_labels=true_labels,
+    )

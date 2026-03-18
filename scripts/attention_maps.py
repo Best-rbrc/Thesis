@@ -29,6 +29,21 @@ from src.model import build_model
 from src.utils import get_device, load_config
 
 
+def _format_gt_value(v) -> str:
+    """Format GT value as 0/1/U (uncertain)."""
+    if v is None:
+        return "N/A"
+    if isinstance(v, float) and np.isnan(v):
+        return "U"
+    try:
+        fv = float(v)
+    except Exception:
+        return "N/A"
+    if fv < 0:
+        return "U"
+    return "1" if fv >= 0.5 else "0"
+
+
 def get_vit_attention_map(model, input_tensor, img_size=224):
     """Extract attention map from ViT CLS token."""
     attention_weights = []
@@ -117,6 +132,7 @@ def run_attention_maps(
     checkpoint_path: str,
     image_path: str,
     output_dir: str,
+    true_labels: list[float] | None = None,
 ) -> None:
     cfg = load_config(config_path)
     device = get_device(cfg)
@@ -189,7 +205,11 @@ def run_attention_maps(
     plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
     
     # Add predictions as text
-    pred_text = "\n".join([f"{label}: {probs[i]:.3f}" for i, label in enumerate(target_labels)])
+    pred_lines = []
+    for i, label in enumerate(target_labels):
+        gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
+        pred_lines.append(f"{label}: GT={gt_str} | p={probs[i]:.3f}")
+    pred_text = "\n".join(pred_lines)
     fig.text(0.98, 0.5, pred_text, fontsize=9, ha="left", va="center", 
              bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.8))
     
@@ -218,6 +238,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="outputs/attention_maps/", help="Output directory.")
     args = parser.parse_args()
     
+    true_labels = None
+
     if args.image:
         image_path = args.image
     else:
@@ -229,6 +251,8 @@ if __name__ == "__main__":
         if data_cfg.get("frontal_only", False):
             df = df[df["Frontal/Lateral"] == "Frontal"].reset_index(drop=True)
         raw_path = df.iloc[args.index]["Path"]
+        target_labels = cfg["labels"]["target_labels"]
+        true_labels = [df.iloc[args.index].get(lbl, np.nan) for lbl in target_labels]
         data_dir = data_cfg["data_dir"]
         if os.path.isabs(data_dir):
             rel = raw_path.split("/", 1)[1] if "/" in raw_path else raw_path
@@ -237,4 +261,4 @@ if __name__ == "__main__":
             image_path = os.path.join(os.path.dirname(data_dir), raw_path)
         print(f"Test image [{args.index}]: {image_path}")
     
-    run_attention_maps(args.config, args.checkpoint, image_path, args.output)
+    run_attention_maps(args.config, args.checkpoint, image_path, args.output, true_labels=true_labels)

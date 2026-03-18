@@ -67,6 +67,7 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 008 | **Swin-Tiny perclass (per-label U + pos_weight)** | 2026-03-09 | 9 | 0.7937 | **0.8129** |
 | 009 | ViT-Base perclass (per-label U + pos_weight) | 2026-03-10 | 9 | 0.7905 | 0.8118 |
 | 010 | **DenseNet121 perclass (per-label U + pos_weight)** | 2026-03-11 | 10 | 0.7925 | **0.8298** |
+| 011 | DenseNet121 perclass longer (patience=7 ablation) | 2026-03-15 | 7 | 0.7931 | 0.8145 |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
@@ -159,6 +160,19 @@ Same per-label U-strategy + pos_weight as Run 008. Consolidation and Atelectasis
 | **Mean** | **0.8298** | **+0.0410** |
 
 **New overall best single-model result by a large margin.** Per-label U-strategy + pos_weight yields a +0.041 improvement over the baseline DenseNet121 (Run 001, 0.7888). All labels improve substantially, with Consolidation gaining +0.082 and Atelectasis +0.050. Remarkably, DenseNet121 with the right training strategy outperforms both Swin-Tiny perclass (+0.017) and ViT-Base perclass (+0.018) despite being a simpler convolutional architecture.
+
+### Run 011 — DenseNet121 perclass longer (patience=7 ablation)
+
+| Label | AUROC | Δ vs Run 010 |
+|---|---|---|
+| Cardiomegaly | 0.8655 | −0.0161 |
+| Edema | 0.8600 | −0.0094 |
+| Consolidation | 0.7309 | −0.0278 |
+| Atelectasis | 0.7354 | −0.0178 |
+| Pleural Effusion | 0.8808 | −0.0053 |
+| **Mean** | **0.8145** | **−0.0153** |
+
+**Negative ablation result.** Increasing early stopping patience from 5 to 7 did **not** improve DenseNet121 perclass. The model selected at epoch 7 reaches 0.8145 mean test AUROC, which is substantially below Run 010 (0.8298). All five labels are worse, with the largest drops on Consolidation (−0.028) and Atelectasis (−0.018). This suggests that the stronger Run 010 result was not caused by overly aggressive early stopping; instead, the patience=7 setting appears to have selected a weaker checkpoint despite a slightly higher validation AUROC (0.7931 vs. 0.7925), highlighting some validation-test noise in this regime.
 
 ---
 
@@ -437,6 +451,31 @@ Checkpoint: [`checkpoints/densenet121/run010_densenet121_perclass_ep10_val0.7925
 
 ---
 
+### Run 011 — DenseNet121 perclass longer (patience=7 ablation)
+
+| Parameter | Value |
+|---|---|
+| Architecture | `densenet121` (torchvision) |
+| Pretrained | ImageNet-1k |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 7 / 20 |
+| Learning rate | 1e-4 |
+| Weight decay | 0.01 |
+| Warmup epochs | 1 |
+| Scheduler | Cosine |
+| Early stopping patience | 7 |
+| Uncertainty strategy | **u-mixed** (per-label) |
+| Per-label strategies | Cardiomegaly: u-zeros, Edema: u-ones, Consolidation: u-ones, Atelectasis: u-ones, Pleural Effusion: u-zeros |
+| pos_weight | **true** (Cardiomegaly 7.15×, Consolidation 4.10×, Atelectasis 2.20×, Edema 2.10×, Pleural Effusion 1.48×) |
+| AdamW param groups | bias/norm WD=0, rest WD=0.01 |
+| Gradient clipping | max_norm=1.0 |
+
+Config: [`configs/archive/run011_densenet121_perclass_longer_2026-03-15/densenet121_perclass_longer.yaml`](configs/archive/run011_densenet121_perclass_longer_2026-03-15/densenet121_perclass_longer.yaml)  
+Checkpoint: [`checkpoints/densenet121/run011_densenet121_perclass_longer_ep07_val0.7931_test0.8145.pt`](checkpoints/densenet121/run011_densenet121_perclass_longer_ep07_val0.7931_test0.8145.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny perclass (Run 008 + horizontal flip average)
@@ -588,6 +627,7 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 14. **DenseNet121 with per-label U-strategy + pos_weight is the new best single model (Run 010, 0.8298):** Applying the same per-label U-strategy and pos_weight to DenseNet121 achieves **0.8298** test AUROC (+0.041 over baseline Run 001 at 0.7888), far surpassing both Swin-Tiny perclass (0.8129) and ViT-Base perclass (0.8118). This is a surprising result: a classical CNN architecture outperforms both transformers when given the right uncertainty handling and loss weighting. The effect is most pronounced on the hardest labels — Consolidation (+0.082) and Atelectasis (+0.050) — suggesting that the training strategy matters more than the architecture for these labels. The higher optimal learning rate (1e-4 vs. 5e-5/3e-5) and faster convergence (epoch 10 of 20) may reflect DenseNet's lower sample efficiency requirements.
 15. **DenseNet121 perclass + TTA achieves the overall best result (0.8334):** TTA adds a further +0.0036, bringing Run 010 to **0.8334**, the highest score in all experiments. All labels improve consistently.
 16. **The 3-model perclass ensemble (0.8295) is marginally worse than DenseNet121 perclass alone (0.8298):** Averaging logits from Swin-Tiny (0.8129) and ViT-Base (0.8118) with DenseNet (0.8298) slightly dilutes the ensemble, especially on Consolidation (−0.0045) and Atelectasis (−0.0021) where DenseNet is clearly the strongest. Only the shared strong labels (Cardiomegaly, Edema, Pleural Effusion) show small gains (+0.0016–0.0018). This demonstrates that ensemble gains require model diversity **and** comparable individual strength; including consistently weaker models can hurt the best-performing label scores.
+17. **Increasing DenseNet121 perclass patience from 5 to 7 hurts performance (Run 011, 0.8145):** The longer-patience ablation underperforms Run 010 by **−0.0153** mean AUROC and is worse on every label. This indicates that Run 010 was not prematurely stopped; extra patience does not recover a better checkpoint and instead leads to a weaker final model on the held-out test set.
 
 ---
 
