@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from src.dataset import CheXpertDataset, get_cxr_valid_transforms, get_valid_transforms
 from src.model import build_model
-from src.utils import compute_aurocs, get_device, load_config
+from src.utils import compute_aurocs, compute_f1s, get_device, load_config
 
 
 def _print_results(
@@ -20,17 +20,33 @@ def _print_results(
     aurocs: dict[str, float],
     mean_auroc: float,
     tag: str = "",
+    f1s: dict | None = None,
 ) -> None:
     label = f"{split_name} {tag}".strip()
-    print(f"\n{'─' * 50}")
+    print(f"\n{'─' * 62}")
     print(f"  Split:      {label}")
     if eval_loss is not None:
         print(f"  Loss:       {eval_loss:.4f}")
     print(f"  Mean AUROC: {mean_auroc:.4f}")
-    print(f"{'─' * 50}")
-    for name, auc in aurocs.items():
-        print(f"  {name:30s}  {auc:.4f}")
-    print(f"{'─' * 50}")
+    if f1s is not None:
+        valid_f1 = [v["f1_05"] for v in f1s.values() if not np.isnan(v["f1_05"])]
+        print(f"  Mean F1@0.5:{np.mean(valid_f1):.4f}" if valid_f1 else "  Mean F1@0.5: N/A")
+        valid_opt = [v["f1_opt"] for v in f1s.values() if not np.isnan(v["f1_opt"])]
+        print(f"  Mean F1-opt:{np.mean(valid_opt):.4f}" if valid_opt else "  Mean F1-opt: N/A")
+    print(f"{'─' * 62}")
+    if f1s is not None:
+        print(f"  {'Label':30s}  {'AUROC':>6}  {'F1@0.5':>7}  {'F1-opt':>7}  {'T-opt':>6}")
+        print(f"  {'─' * 30}  {'─' * 6}  {'─' * 7}  {'─' * 7}  {'─' * 6}")
+        for name, auc in aurocs.items():
+            fd = f1s.get(name, {})
+            f05 = fd.get("f1_05", float("nan"))
+            fop = fd.get("f1_opt", float("nan"))
+            thr = fd.get("thresh_opt", float("nan"))
+            print(f"  {name:30s}  {auc:6.4f}  {f05:7.4f}  {fop:7.4f}  {thr:6.2f}")
+    else:
+        for name, auc in aurocs.items():
+            print(f"  {name:30s}  {auc:.4f}")
+    print(f"{'─' * 62}")
 
 
 def _run_evaluation(
@@ -187,7 +203,8 @@ def evaluate(
 
     aurocs = compute_aurocs(labels, preds, target_labels)
     mean_auroc = float(np.nanmean(list(aurocs.values())))
-    _print_results(split_name, eval_loss, aurocs, mean_auroc)
+    f1s = compute_f1s(labels, preds, target_labels)
+    _print_results(split_name, eval_loss, aurocs, mean_auroc, f1s=f1s)
 
     if tta:
         flip_preds = _run_tta(
@@ -197,7 +214,8 @@ def evaluate(
         tta_preds = (preds + flip_preds) / 2.0
         tta_aurocs = compute_aurocs(labels, tta_preds, target_labels)
         tta_mean = float(np.nanmean(list(tta_aurocs.values())))
-        _print_results(split_name, None, tta_aurocs, tta_mean, tag="[TTA]")
+        tta_f1s = compute_f1s(labels, tta_preds, target_labels)
+        _print_results(split_name, None, tta_aurocs, tta_mean, tag="[TTA]", f1s=tta_f1s)
 
 
 if __name__ == "__main__":
