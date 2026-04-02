@@ -28,3 +28,16 @@ outputs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# ── Frontend ──
+frontend/.git_backup/
+frontend/.env
+frontend/node_modules/
+frontend/dist/
+
+# ── LaTeX auxiliary ──
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
