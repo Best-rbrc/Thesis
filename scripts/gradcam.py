@@ -19,6 +19,7 @@ import argparse
 import os
 
 import cv2
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -30,6 +31,25 @@ from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from src.dataset import get_cxr_valid_transforms, get_valid_transforms
 from src.model import build_model
 from src.utils import get_device, load_config
+
+
+def _label_to_slug(label: str) -> str:
+    """Convert model label name to frontend finding ID (e.g. 'Pleural Effusion' → 'pleural_effusion')."""
+    return label.lower().replace(" ", "_")
+
+
+def _save_overlay_png(heatmap: np.ndarray, output_path: str, colormap: str = "jet") -> None:
+    """Save a per-finding heatmap as a transparent RGBA PNG overlay.
+
+    The alpha channel is set proportional to heatmap intensity so that
+    zero-activation regions are fully transparent and can be composited
+    over the original X-ray in the frontend using mix-blend-mode: screen.
+    """
+    cmap = cm.get_cmap(colormap)
+    rgba = cmap(heatmap).astype(np.float64)          # (H, W, 4) in [0, 1]
+    rgba[:, :, 3] = np.clip(heatmap * 1.5, 0.0, 1.0) # boost alpha slightly for visibility
+    rgba_uint8 = (rgba * 255).astype(np.uint8)
+    Image.fromarray(rgba_uint8, mode="RGBA").save(output_path)
 
 
 def _format_gt_value(v) -> str:
@@ -94,7 +114,14 @@ def run_gradcam(
     image_path: str,
     output_dir: str,
     true_labels: list[float] | None = None,
+    study_overlays: bool = False,
 ) -> None:
+    """Generate Grad-CAM visualizations.
+
+    When study_overlays=True, saves individual transparent RGBA PNG overlays
+    per finding (no composite figure) suitable for frontend display.
+    When False (default), saves the original composite matplotlib figure.
+    """
     cfg = load_config(config_path)
     device = get_device(cfg)
     data_cfg = cfg["data"]
@@ -133,40 +160,50 @@ def run_gradcam(
     target_layers, reshape_fn = _get_target_layer_and_reshape(model, arch, image_size)
     cam = GradCAM(model=model, target_layers=target_layers, reshape_transform=reshape_fn)
 
-    # Generate one heatmap per label
-    n_labels = len(target_labels)
-    fig, axes = plt.subplots(1, n_labels + 1, figsize=(4 * (n_labels + 1), 4))
-
-    # Panel 0: original X-ray
-    axes[0].imshow(rgb_img, cmap="gray")
-    axes[0].set_title("Original", fontsize=11)
-    axes[0].axis("off")
-
-    for i, label in enumerate(target_labels):
-        targets = [ClassifierOutputTarget(i)]
-        grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
-        grayscale_cam = grayscale_cam[0]  # first (only) image in batch
-
-        overlay = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-        axes[i + 1].imshow(overlay)
-        gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
-        axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
-        axes[i + 1].axis("off")
-
-    fig.suptitle(f"Grad-CAM — {arch}", fontsize=13, y=1.02)
-    fig.tight_layout()
-
-    # Save
+    # Build descriptive basename from patient path
     os.makedirs(output_dir, exist_ok=True)
-    # Build a descriptive filename from the patient path
     parts = image_path.replace("\\", "/").split("/")
     patient_parts = [p for p in parts if p.startswith("patient") or p.startswith("study") or p.startswith("view")]
     basename = "_".join(patient_parts) if patient_parts else os.path.splitext(os.path.basename(image_path))[0]
     basename = basename.replace(".jpg", "").replace(".png", "")
-    out_path = os.path.join(output_dir, f"{basename}_{arch}_gradcam.png")
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {out_path}")
+
+    if study_overlays:
+        # --- Per-finding transparent RGBA PNGs for frontend overlay ---
+        # Resize heatmap to original image dimensions so it aligns correctly
+        # when both X-ray and overlay are shown with CSS object-contain.
+        orig_w, orig_h = Image.open(image_path).size
+        for i, label in enumerate(target_labels):
+            targets = [ClassifierOutputTarget(i)]
+            grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+            grayscale_cam_orig = cv2.resize(grayscale_cam, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+            slug = _label_to_slug(label)
+            out_path = os.path.join(output_dir, f"{basename}_gradcam_{slug}.png")
+            _save_overlay_png(grayscale_cam_orig, out_path, colormap="jet")
+            print(f"Saved: {out_path}")
+    else:
+        # --- Original composite matplotlib figure (research use) ---
+        n_labels = len(target_labels)
+        fig, axes = plt.subplots(1, n_labels + 1, figsize=(4 * (n_labels + 1), 4))
+
+        axes[0].imshow(rgb_img, cmap="gray")
+        axes[0].set_title("Original", fontsize=11)
+        axes[0].axis("off")
+
+        for i, label in enumerate(target_labels):
+            targets = [ClassifierOutputTarget(i)]
+            grayscale_cam = cam(input_tensor=input_tensor, targets=targets)[0]
+            overlay = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
+            axes[i + 1].imshow(overlay)
+            gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
+            axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
+            axes[i + 1].axis("off")
+
+        fig.suptitle(f"Grad-CAM — {arch}", fontsize=13, y=1.02)
+        fig.tight_layout()
+        out_path = os.path.join(output_dir, f"{basename}_{arch}_gradcam.png")
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
@@ -177,6 +214,8 @@ if __name__ == "__main__":
     group.add_argument("--image", help="Path to a single X-ray image.")
     group.add_argument("--index", type=int, help="Pick the Nth image from the test set.")
     parser.add_argument("--output", default="outputs/gradcam/", help="Output directory.")
+    parser.add_argument("--study-overlays", action="store_true",
+                        help="Save individual transparent RGBA PNGs per finding instead of composite figure.")
     args = parser.parse_args()
 
     true_labels = None
@@ -202,4 +241,5 @@ if __name__ == "__main__":
             image_path = os.path.join(os.path.dirname(data_dir), raw_path)
         print(f"Test image [{args.index}]: {image_path}")
 
-    run_gradcam(args.config, args.checkpoint, image_path, args.output, true_labels=true_labels)
+    run_gradcam(args.config, args.checkpoint, image_path, args.output,
+                true_labels=true_labels, study_overlays=args.study_overlays)

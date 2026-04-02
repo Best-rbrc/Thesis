@@ -23,6 +23,7 @@ Usage (from project root):
 import argparse
 import os
 
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -32,6 +33,25 @@ from PIL import Image
 from src.dataset import get_cxr_valid_transforms, get_valid_transforms
 from src.model import build_model
 from src.utils import get_device, load_config
+
+
+def _label_to_slug(label: str) -> str:
+    """Convert model label name to frontend finding ID (e.g. 'Pleural Effusion' → 'pleural_effusion')."""
+    return label.lower().replace(" ", "_")
+
+
+def _save_overlay_png(heatmap: np.ndarray, output_path: str, colormap: str = "hot") -> None:
+    """Save a per-finding attribution map as a transparent RGBA PNG overlay.
+
+    The alpha channel is set proportional to attribution intensity so that
+    zero-attribution regions are fully transparent and can be composited
+    over the original X-ray in the frontend using mix-blend-mode: screen.
+    """
+    cmap = cm.get_cmap(colormap)
+    rgba = cmap(heatmap).astype(np.float64)           # (H, W, 4) in [0, 1]
+    rgba[:, :, 3] = np.clip(heatmap * 1.5, 0.0, 1.0)  # boost alpha for visibility
+    rgba_uint8 = (rgba * 255).astype(np.uint8)
+    Image.fromarray(rgba_uint8, mode="RGBA").save(output_path)
 
 
 def _format_gt_value(v) -> str:
@@ -76,7 +96,14 @@ def run_integrated_gradients(
     output_dir: str,
     n_steps: int = 50,
     true_labels: list[float] | None = None,
+    study_overlays: bool = False,
 ) -> None:
+    """Generate Integrated Gradients visualizations.
+
+    When study_overlays=True, saves individual transparent RGBA PNG overlays
+    per finding (no composite figure) suitable for frontend display.
+    When False (default), saves the original composite matplotlib figure.
+    """
     cfg = load_config(config_path)
     device = get_device(cfg)
     
@@ -153,37 +180,49 @@ def run_integrated_gradients(
         attributions.append(attr_norm)
         print(f"  [{i+1}/{n_labels}] {target_labels[i]}: done", flush=True)
     
-    # Create figure with original + per-label attributions
-    fig, axes = plt.subplots(1, n_labels + 1, figsize=(4 * (n_labels + 1), 4))
-    
-    # Panel 0: original
-    axes[0].imshow(rgb_img, cmap="gray")
-    axes[0].set_title("Original", fontsize=11)
-    axes[0].axis("off")
-    
-    # Panels 1-n: attribution heatmaps
-    for i, label in enumerate(target_labels):
-        # Show original image
-        axes[i + 1].imshow(rgb_img, cmap="gray")
-        # Overlay attribution heatmap
-        im = axes[i + 1].imshow(attributions[i], cmap="hot", alpha=0.6)
-        gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
-        axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
-        axes[i + 1].axis("off")
-    
-    fig.suptitle(f"Integrated Gradients — {arch}", fontsize=13, y=1.02)
-    fig.tight_layout()
-    
-    # Save
+    # Build descriptive basename from patient path
     os.makedirs(output_dir, exist_ok=True)
     parts = image_path.replace("\\", "/").split("/")
     patient_parts = [p for p in parts if p.startswith("patient") or p.startswith("study") or p.startswith("view")]
     basename = "_".join(patient_parts) if patient_parts else os.path.splitext(os.path.basename(image_path))[0]
     basename = basename.replace(".jpg", "").replace(".png", "")
-    out_path = os.path.join(output_dir, f"{basename}_{arch}_ig.png")
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {out_path}")
+
+    if study_overlays:
+        # --- Per-finding transparent RGBA PNGs for frontend overlay ---
+        # Resize attribution to original image dimensions so it aligns correctly
+        # when both X-ray and overlay are shown with CSS object-contain.
+        orig_img_pil = Image.open(image_path)
+        orig_w, orig_h = orig_img_pil.size
+        for i, label in enumerate(target_labels):
+            attr_uint8 = (attributions[i] * 255).astype(np.uint8)
+            attr_resized = np.array(
+                Image.fromarray(attr_uint8).resize((orig_w, orig_h), Image.BILINEAR)
+            ).astype(np.float32) / 255.0
+            slug = _label_to_slug(label)
+            out_path = os.path.join(output_dir, f"{basename}_intgrad_{slug}.png")
+            _save_overlay_png(attr_resized, out_path, colormap="hot")
+            print(f"Saved: {out_path}")
+    else:
+        # --- Original composite matplotlib figure (research use) ---
+        fig, axes = plt.subplots(1, n_labels + 1, figsize=(4 * (n_labels + 1), 4))
+
+        axes[0].imshow(rgb_img, cmap="gray")
+        axes[0].set_title("Original", fontsize=11)
+        axes[0].axis("off")
+
+        for i, label in enumerate(target_labels):
+            axes[i + 1].imshow(rgb_img, cmap="gray")
+            axes[i + 1].imshow(attributions[i], cmap="hot", alpha=0.6)
+            gt_str = _format_gt_value(true_labels[i]) if true_labels is not None and i < len(true_labels) else "N/A"
+            axes[i + 1].set_title(f"{label}\nGT={gt_str} | p={probs[i]:.3f}", fontsize=10)
+            axes[i + 1].axis("off")
+
+        fig.suptitle(f"Integrated Gradients — {arch}", fontsize=13, y=1.02)
+        fig.tight_layout()
+        out_path = os.path.join(output_dir, f"{basename}_{arch}_ig.png")
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
@@ -195,6 +234,8 @@ if __name__ == "__main__":
     group.add_argument("--index", type=int, help="Pick the Nth image from the test set.")
     parser.add_argument("--output", default="outputs/integrated_gradients/", help="Output directory.")
     parser.add_argument("--n-steps", type=int, default=50, help="Number of steps for IG approximation.")
+    parser.add_argument("--study-overlays", action="store_true",
+                        help="Save individual transparent RGBA PNGs per finding instead of composite figure.")
     args = parser.parse_args()
     
     true_labels = None
@@ -227,4 +268,5 @@ if __name__ == "__main__":
         args.output,
         args.n_steps,
         true_labels=true_labels,
+        study_overlays=args.study_overlays,
     )

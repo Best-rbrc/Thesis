@@ -68,6 +68,7 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 009 | ViT-Base perclass (per-label U + pos_weight) | 2026-03-10 | 9 | 0.7905 | 0.8118 |
 | 010 | **DenseNet121 perclass (per-label U + pos_weight)** | 2026-03-11 | 10 | 0.7925 | **0.8298** |
 | 011 | DenseNet121 perclass longer (patience=7 ablation) | 2026-03-15 | 7 | 0.7931 | 0.8145 |
+| 012 | **DenseNet121 7-labels** (+ Fracture, Pneumothorax) | 2026-03-30 | 7 | 0.8015 | **0.8269** *(7-label mean)* / 0.8073 *(5-label mean)* |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
@@ -173,6 +174,22 @@ Same per-label U-strategy + pos_weight as Run 008. Consolidation and Atelectasis
 | **Mean** | **0.8145** | **−0.0153** |
 
 **Negative ablation result.** Increasing early stopping patience from 5 to 7 did **not** improve DenseNet121 perclass. The model selected at epoch 7 reaches 0.8145 mean test AUROC, which is substantially below Run 010 (0.8298). All five labels are worse, with the largest drops on Consolidation (−0.028) and Atelectasis (−0.018). This suggests that the stronger Run 010 result was not caused by overly aggressive early stopping; instead, the patience=7 setting appears to have selected a weaker checkpoint despite a slightly higher validation AUROC (0.7931 vs. 0.7925), highlighting some validation-test noise in this regime.
+
+### Run 012 — DenseNet121 7-labels (+ Fracture, Pneumothorax)
+
+| Label | AUROC | F1@0.5 | F1-opt | T-opt | Δ AUROC vs Run 010 |
+|---|---|---|---|---|---|
+| Cardiomegaly | 0.8654 | 0.5518 | 0.5483 | 0.48 | −0.0162 |
+| Edema | 0.8563 | 0.6862 | 0.6898 | 0.54 | −0.0131 |
+| Consolidation | 0.7149 | 0.4106 | 0.4178 | 0.54 | −0.0438 |
+| Atelectasis | 0.7235 | 0.5584 | 0.5587 | 0.50 | −0.0297 |
+| Pleural Effusion | 0.8763 | 0.7808 | 0.7802 | 0.51 | −0.0098 |
+| Fracture | 0.8666 | 0.2528 | 0.2150 | 0.39 | *(new)* |
+| Pneumothorax | 0.8854 | 0.4755 | 0.5097 | 0.57 | *(new)* |
+| **Mean (7-label)** | **0.8269** | **0.5309** | **0.5314** | — | — |
+| **Mean (5-label only)** | **0.8073** | — | — | — | **−0.0225** |
+
+**Expanding to 7 labels reduces performance on the original 5 labels.** The 5-label mean AUROC drops from 0.8298 (Run 010) to 0.8073 (−0.0225), with the largest degradation on Consolidation (−0.044) and Atelectasis (−0.030) — the two hardest labels. The two new labels, Fracture (0.8666) and Pneumothorax (0.8854), achieve strong AUROC despite being added in a multi-task setting. However, their F1 scores are low: Fracture F1-opt=0.2150 (very low prevalence), Pneumothorax F1-opt=0.5097. The inflated 7-label mean AUROC (0.8269) should not be compared directly to Run 010 (0.8298) since the label sets differ. This model is the one selected for deployment in the user study due to its clinical breadth (7 labels) and strong per-label AUROC.
 
 ---
 
@@ -476,6 +493,24 @@ Checkpoint: [`checkpoints/densenet121/run011_densenet121_perclass_longer_ep07_va
 
 ---
 
+### Run 012 — DenseNet121 7-labels
+
+| Parameter | Value |
+|---|---|
+| Architecture | `densenet121` (torchvision) |
+| Pretrained | ImageNet-1k |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 7 |
+| Val AUROC (saved) | 0.8015 |
+| Uncertainty strategy | *(see config)* |
+| Labels | Cardiomegaly, Edema, Consolidation, Atelectasis, Pleural Effusion, Fracture, Pneumothorax |
+
+Config: [`configs/archive/run012_densenet121_7labels_2026-03-30/densenet121_7labels.yaml`](configs/archive/run012_densenet121_7labels_2026-03-30/densenet121_7labels.yaml)  
+Checkpoint: [`checkpoints/densenet121/run012_densenet121_7labels_ep07_val0.8015_test0.8269.pt`](checkpoints/densenet121/run012_densenet121_7labels_ep07_val0.8015_test0.8269.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny perclass (Run 008 + horizontal flip average)
@@ -628,6 +663,7 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 15. **DenseNet121 perclass + TTA achieves the overall best result (0.8334):** TTA adds a further +0.0036, bringing Run 010 to **0.8334**, the highest score in all experiments. All labels improve consistently.
 16. **The 3-model perclass ensemble (0.8295) is marginally worse than DenseNet121 perclass alone (0.8298):** Averaging logits from Swin-Tiny (0.8129) and ViT-Base (0.8118) with DenseNet (0.8298) slightly dilutes the ensemble, especially on Consolidation (−0.0045) and Atelectasis (−0.0021) where DenseNet is clearly the strongest. Only the shared strong labels (Cardiomegaly, Edema, Pleural Effusion) show small gains (+0.0016–0.0018). This demonstrates that ensemble gains require model diversity **and** comparable individual strength; including consistently weaker models can hurt the best-performing label scores.
 17. **Increasing DenseNet121 perclass patience from 5 to 7 hurts performance (Run 011, 0.8145):** The longer-patience ablation underperforms Run 010 by **−0.0153** mean AUROC and is worse on every label. This indicates that Run 010 was not prematurely stopped; extra patience does not recover a better checkpoint and instead leads to a weaker final model on the held-out test set.
+18. **Expanding to 7 labels degrades performance on the original 5 (Run 012, 0.8073 on 5-label mean):** Adding Fracture and Pneumothorax reduces the 5-label mean AUROC from 0.8298 (Run 010) to 0.8073 (−0.0225). The hardest labels suffer most: Consolidation −0.044, Atelectasis −0.030. Despite this, the 7-label model is selected for the user study due to its clinical breadth. The two new labels achieve strong AUROC (Fracture 0.8666, Pneumothorax 0.8854) but low F1 (Fracture F1-opt=0.2150, Pneumothorax F1-opt=0.5097), reflecting their lower prevalence. Note: the reported mean AUROC of 0.8269 spans 7 labels and is not directly comparable to earlier 5-label means.
 
 ---
 
@@ -654,6 +690,12 @@ uv run python -m scripts.analyze_multilabel \
 uv run python -m src.evaluate \
   --config configs/archive/run007_swin_tiny_consolidation_2026-02-13/swin_tiny_consolidation.yaml \
   --checkpoint checkpoints/swin_tiny/run007_swin_tiny_consolidation_ep16_val0.6744_test0.7082.pt \
+  --split test
+
+# Evaluate 7-label DenseNet121 (Run 012)
+uv run python -m src.evaluate \
+  --config configs/archive/run012_densenet121_7labels_2026-03-30/densenet121_7labels.yaml \
+  --checkpoint checkpoints/densenet121/run012_densenet121_7labels_ep07_val0.8015_test0.8269.pt \
   --split test
 ```
 
