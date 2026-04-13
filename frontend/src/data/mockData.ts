@@ -10,6 +10,7 @@ export const FINDINGS: Finding[] = [
   { id: "consolidation", name: "Consolidation", description: "Dense opacity in lung tissue" },
   { id: "atelectasis", name: "Atelectasis", description: "Partial lung collapse" },
   { id: "pleural_effusion", name: "Pleural Effusion", description: "Fluid around the lungs" },
+  { id: "pneumothorax", name: "Pneumothorax", description: "Air in the pleural space" },
 ];
 
 export type StudyCondition = "A" | "B" | "C" | "D" | "E";
@@ -27,7 +28,7 @@ export interface CaseMetadata {
 }
 
 export interface CaseOverlays {
-  gradcam: Record<string, string>; // finding_id → transparent RGBA PNG url
+  gradcam: Record<string, string>;
   intgrad: Record<string, string>;
 }
 
@@ -38,116 +39,551 @@ export interface CaseData {
   aiPredictions: AIPrediction[];
   biasWarning?: string;
   groundTruth: string[];
+  primaryFindings: string[];
+  incidentalFindings: string[];
+  clinicalContext?: string;
   category: CaseCategory;
   metadata?: CaseMetadata;
   overlays?: CaseOverlays;
   isAttentionCheck?: boolean;
 }
 
-// Real CheXpert cases with per-finding DenseNet-121 explainability overlays.
-// All study cases currently cycle through these 3 patients; swap per-case when
-// real per-case assets are generated.
-const STUDY_FINDINGS = ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"] as const;
+// ---------------------------------------------------------------------------
+// Image registry: 21 real CheXpert images with Run 014 (6-label DenseNet121)
+// overlays.  Ground truths come from the CheXpert CSV; AI predictions are the
+// actual Run 014 sigmoid outputs rounded to integer percentages.
+// See CASE_SELECTION.md for full rationale on each image choice.
+// ---------------------------------------------------------------------------
+
+const STUDY_FINDINGS = ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"] as const;
 
 const makeOverlays = (prefix: string): CaseOverlays => ({
   gradcam: Object.fromEntries(STUDY_FINDINGS.map(f => [f, `/cases/${prefix}_gradcam_${f}.png`])),
   intgrad: Object.fromEntries(STUDY_FINDINGS.map(f => [f, `/cases/${prefix}_intgrad_${f}.png`])),
 });
 
-const CASES = [
-  { imageUrl: "/cases/patient00082_xray.jpg", overlays: makeOverlays("patient00082_study1_view1_frontal") },
-  { imageUrl: "/cases/patient35759_xray.jpg", overlays: makeOverlays("patient35759_study9_view1_frontal") },
-  { imageUrl: "/cases/patient38491_xray.jpg", overlays: makeOverlays("patient38491_study5_view1_frontal") },
-];
-
-const img = (n: number) => CASES[n % CASES.length];
-
-// Attention check case - obvious cardiomegaly with very high AI confidence
-export const ATTENTION_CHECK_CASE: CaseData = {
-  id: "attention-check-01",
-  ...img(0),
-  condition: "B",
-  category: "attention_check",
-  isAttentionCheck: true,
-  aiPredictions: [
-    { findingId: "cardiomegaly", confidence: 97 },
-    { findingId: "edema", confidence: 3 },
-    { findingId: "consolidation", confidence: 2 },
-    { findingId: "atelectasis", confidence: 1 },
-    { findingId: "pleural_effusion", confidence: 5 },
-  ],
-  groundTruth: ["cardiomegaly"],
-  metadata: { age: 65, sex: "M", view: "PA" },
-};
-
-// 4 baseline cases (unassisted mini-test)
-export const BASELINE_CASES: CaseData[] = [
-  {
-    id: "baseline-01", imageUrl: img(0).imageUrl, condition: "A", category: "baseline",
-    aiPredictions: [], groundTruth: ["cardiomegaly"],
-    metadata: { age: 55, sex: "M", view: "PA" },
-  },
-  {
-    id: "baseline-02", imageUrl: img(1).imageUrl, condition: "A", category: "baseline",
-    aiPredictions: [], groundTruth: ["edema", "pleural_effusion"],
-    metadata: { age: 72, sex: "F", view: "AP" },
-  },
-  {
-    id: "baseline-03", imageUrl: img(2).imageUrl, condition: "A", category: "baseline",
-    aiPredictions: [], groundTruth: ["consolidation"],
-    metadata: { age: 34, sex: "M", view: "PA" },
-  },
-  {
-    id: "baseline-04", imageUrl: img(0).imageUrl, condition: "A", category: "baseline",
-    aiPredictions: [], groundTruth: ["atelectasis", "cardiomegaly"],
-    metadata: { age: 68, sex: "F", view: "PA" },
-  },
-];
-
-// Pool of 24 main study cases
-const makePreds = (c: number, e: number, co: number, a: number, p: number): AIPrediction[] => [
+const makePreds = (c: number, e: number, co: number, a: number, p: number, pn: number): AIPrediction[] => [
   { findingId: "cardiomegaly", confidence: c },
   { findingId: "edema", confidence: e },
   { findingId: "consolidation", confidence: co },
   { findingId: "atelectasis", confidence: a },
   { findingId: "pleural_effusion", confidence: p },
+  { findingId: "pneumothorax", confidence: pn },
 ];
 
+// Each image entry: URL, overlay prefix, real model predictions, CheXpert GT
+const IMG = {
+  // EASY images — single dominant finding
+  p21795: {
+    url: "/cases/patient21795_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient21795_study1_view1_frontal"),
+    preds: makePreds(95, 60, 42, 40, 12, 7),   // GT: cardiomegaly
+    gt: ["cardiomegaly"],
+    meta: { age: 81, sex: "M", view: "AP" as const },
+  },
+  p37124: {
+    url: "/cases/patient37124_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient37124_study3_view1_frontal"),
+    preds: makePreds(31, 95, 33, 49, 8, 3),     // GT: edema
+    gt: ["edema"],
+    meta: { age: 48, sex: "M", view: "AP" as const },
+  },
+  p00008: {
+    url: "/cases/patient00008_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient00008_study1_view1_frontal"),
+    preds: makePreds(11, 55, 72, 72, 91, 23),   // GT: pleural_effusion
+    gt: ["pleural_effusion"],
+    meta: { age: 81, sex: "M", view: "AP" as const },
+  },
+  p34852: {
+    url: "/cases/patient34852_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient34852_study3_view1_frontal"),
+    preds: makePreds(54, 65, 83, 35, 56, 12),   // GT: consolidation
+    gt: ["consolidation"],
+    meta: { age: 72, sex: "M", view: "AP" as const },
+  },
+
+  // HARD images — multiple confirmed findings, no pneumothorax
+  p59546: {
+    url: "/cases/patient59546_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient59546_study1_view1_frontal"),
+    preds: makePreds(72, 89, 78, 80, 81, 3),
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 67, sex: "M", view: "AP" as const },
+  },
+  p31804: {
+    url: "/cases/patient31804_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient31804_study3_view1_frontal"),
+    preds: makePreds(95, 89, 53, 62, 82, 4),
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 78, sex: "F", view: "AP" as const },
+  },
+  p38933: {
+    url: "/cases/patient38933_study4_view1_frontal.jpg",
+    overlays: makeOverlays("patient38933_study4_view1_frontal"),
+    preds: makePreds(96, 92, 64, 56, 86, 1),
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 68, sex: "F", view: "AP" as const },
+  },
+
+  // INCIDENTAL images — pneumothorax present alongside other findings
+  p05319: {
+    url: "/cases/patient05319_study6_view1_frontal.jpg",
+    overlays: makeOverlays("patient05319_study6_view1_frontal"),
+    preds: makePreds(24, 30, 62, 45, 65, 99),
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 61, sex: "M", view: "AP" as const },
+  },
+  p36698: {
+    url: "/cases/patient36698_study5_view1_frontal.jpg",
+    overlays: makeOverlays("patient36698_study5_view1_frontal"),
+    preds: makePreds(70, 92, 48, 56, 93, 57),
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 44, sex: "F", view: "AP" as const },
+  },
+  p49165: {
+    url: "/cases/patient49165_study2_view1_frontal.jpg",
+    overlays: makeOverlays("patient49165_study2_view1_frontal"),
+    preds: makePreds(44, 54, 48, 52, 35, 94),
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 35, sex: "F", view: "AP" as const },
+  },
+  p48367: {
+    url: "/cases/patient48367_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient48367_study3_view1_frontal"),
+    preds: makePreds(33, 70, 55, 54, 73, 59),
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 57, sex: "M", view: "AP" as const },
+  },
+
+  // NORMAL images — no findings (for baseline & AI-wrong)
+  p00001: {
+    url: "/cases/patient00001_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient00001_study1_view1_frontal"),
+    preds: makePreds(20, 23, 43, 59, 13, 52),   // notable FPs: atelectasis 59%, PTX 52%
+    gt: [] as string[],
+    meta: { age: 68, sex: "F", view: "AP" as const },
+  },
+  p00004: {
+    url: "/cases/patient00004_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient00004_study1_view1_frontal"),
+    preds: makePreds(4, 2, 14, 5, 4, 31),       // mild ptx FP
+    gt: [] as string[],
+    meta: { age: 20, sex: "F", view: "PA" as const },
+  },
+
+  // ---- 8 NEW IMAGES (added for FIXED_15 / FIXED_20 support) ----
+  // See CASE_SELECTION.md for full selection rationale.
+
+  // Easy
+  p32710: {
+    url: "/cases/patient32710_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient32710_study1_view1_frontal"),
+    preds: makePreds(27, 72, 13, 12, 2, 1),     // GT: edema — cleanest easy case
+    gt: ["edema"],
+    meta: { age: 79, sex: "F", view: "AP" as const },
+  },
+
+  // Hard — new images
+  p25296: {
+    url: "/cases/patient25296_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient25296_study3_view1_frontal"),
+    preds: makePreds(91, 83, 57, 48, 95, 2),    // GT: all 5; atel MISS at 48%
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 71, sex: "M", view: "AP" as const },
+  },
+  p04050: {
+    url: "/cases/patient04050_study29_view1_frontal.jpg",
+    overlays: makeOverlays("patient04050_study29_view1_frontal"),
+    preds: makePreds(92, 56, 54, 60, 68, 16),   // GT: all 5; moderate across the board
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 25, sex: "M", view: "AP" as const },
+  },
+  p28936: {
+    url: "/cases/patient28936_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient28936_study1_view1_frontal"),
+    preds: makePreds(72, 86, 67, 54, 94, 4),    // GT: all 5; effusion very high (94%)
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 53, sex: "F", view: "AP" as const },
+  },
+  p05067: {
+    url: "/cases/patient05067_study3_view1_frontal.jpg",
+    overlays: makeOverlays("patient05067_study3_view1_frontal"),
+    preds: makePreds(93, 90, 60, 48, 54, 2),    // GT: all 5; atel MISS at 48%, effusion borderline
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 57, sex: "M", view: "AP" as const },
+  },
+
+  // Incidental — new images
+  p49165s1: {
+    url: "/cases/patient49165_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient49165_study1_view1_frontal"),
+    preds: makePreds(37, 62, 45, 50, 58, 66),   // GT: all 5 + ptx; ptx 66% moderate detection
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 35, sex: "F", view: "AP" as const },
+  },
+  p37577: {
+    url: "/cases/patient37577_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient37577_study1_view1_frontal"),
+    preds: makePreds(87, 44, 65, 67, 82, 24),   // GT: all 5 + ptx; ptx MISS at 24%
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 33, sex: "M", view: "AP" as const },
+  },
+
+  // AI-wrong — clean true negative
+  p00005s1: {
+    url: "/cases/patient00005_study1_view1_frontal.jpg",
+    overlays: makeOverlays("patient00005_study1_view1_frontal"),
+    preds: makePreds(7, 2, 23, 13, 9, 17),      // GT: normal; all low (≤23%)
+    gt: [] as string[],
+    meta: { age: 33, sex: "M", view: "PA" as const },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Attention check: obvious cardiomegaly with very high AI confidence
+// Uses patient21795 (GT: cardiomegaly, model: 95%)
+// ---------------------------------------------------------------------------
+export const ATTENTION_CHECK_CASE: CaseData = {
+  id: "attention-check-01",
+  imageUrl: IMG.p21795.url,
+  overlays: IMG.p21795.overlays,
+  condition: "B",
+  category: "attention_check",
+  isAttentionCheck: true,
+  aiPredictions: IMG.p21795.preds,
+  groundTruth: ["cardiomegaly"],
+  primaryFindings: ["cardiomegaly"],
+  incidentalFindings: [],
+  clinicalContext: "context.attention",
+  metadata: IMG.p21795.meta,
+};
+
+// ---------------------------------------------------------------------------
+// 4 baseline cases — no AI, one per pathology pattern
+// ---------------------------------------------------------------------------
+export const BASELINE_CASES: CaseData[] = [
+  {
+    id: "baseline-01",
+    imageUrl: IMG.p21795.url,
+    condition: "A", category: "baseline",
+    aiPredictions: [],
+    groundTruth: ["cardiomegaly"],
+    primaryFindings: ["cardiomegaly"], incidentalFindings: [],
+    clinicalContext: "context.baseline01",
+    metadata: IMG.p21795.meta,
+  },
+  {
+    id: "baseline-02",
+    imageUrl: IMG.p37124.url,
+    condition: "A", category: "baseline",
+    aiPredictions: [],
+    groundTruth: ["edema"],
+    primaryFindings: ["edema"], incidentalFindings: [],
+    clinicalContext: "context.baseline02",
+    metadata: IMG.p37124.meta,
+  },
+  {
+    id: "baseline-03",
+    imageUrl: IMG.p00008.url,
+    condition: "A", category: "baseline",
+    aiPredictions: [],
+    groundTruth: ["pleural_effusion"],
+    primaryFindings: ["pleural_effusion"], incidentalFindings: [],
+    clinicalContext: "context.baseline03",
+    metadata: IMG.p00008.meta,
+  },
+  {
+    id: "baseline-04",
+    imageUrl: IMG.p00004.url,
+    condition: "A", category: "baseline",
+    aiPredictions: [],
+    groundTruth: [],
+    primaryFindings: [], incidentalFindings: [],
+    clinicalContext: "context.baseline04",
+    metadata: IMG.p00004.meta,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// 24 main study cases
+//
+// Design principles:
+// - groundTruth always matches actual CheXpert labels for the image
+// - aiPredictions are the real Run 014 model outputs (fixed per image)
+// - clinicalContext determines which GT findings are "primary" vs "incidental"
+// - Each image may appear 2-3x with different clinical contexts
+// ---------------------------------------------------------------------------
 export const CASE_POOL: CaseData[] = [
-  // --- Easy cases (4) ---
-  { id: "case-01", ...img(0), condition: "A", category: "easy", aiPredictions: makePreds(92, 8, 5, 10, 12), groundTruth: ["cardiomegaly"], metadata: { age: 60, sex: "M", view: "PA" } },
-  { id: "case-02", ...img(1), condition: "A", category: "easy", aiPredictions: makePreds(10, 88, 15, 8, 20), groundTruth: ["edema"], metadata: { age: 45, sex: "F", view: "PA" } },
-  { id: "case-03", ...img(2), condition: "B", category: "easy", aiPredictions: makePreds(5, 12, 90, 8, 10), groundTruth: ["consolidation"], metadata: { age: 38, sex: "M", view: "PA" } },
-  { id: "case-04", ...img(0), condition: "B", category: "easy", aiPredictions: makePreds(8, 10, 6, 5, 91), groundTruth: ["pleural_effusion"], metadata: { age: 52, sex: "F", view: "PA" } },
+  // =====================================================================
+  // EASY (4): single dominant finding, AI correctly identifies it
+  // =====================================================================
+  {
+    id: "case-01",
+    imageUrl: IMG.p21795.url, overlays: IMG.p21795.overlays,
+    condition: "A", category: "easy",
+    aiPredictions: IMG.p21795.preds,
+    groundTruth: ["cardiomegaly"],
+    primaryFindings: ["cardiomegaly"], incidentalFindings: [],
+    clinicalContext: "context.case01",
+    metadata: IMG.p21795.meta,
+  },
+  {
+    id: "case-02",
+    imageUrl: IMG.p37124.url, overlays: IMG.p37124.overlays,
+    condition: "A", category: "easy",
+    aiPredictions: IMG.p37124.preds,
+    groundTruth: ["edema"],
+    primaryFindings: ["edema"], incidentalFindings: [],
+    clinicalContext: "context.case02",
+    metadata: IMG.p37124.meta,
+  },
+  {
+    id: "case-03",
+    imageUrl: IMG.p00008.url, overlays: IMG.p00008.overlays,
+    condition: "B", category: "easy",
+    aiPredictions: IMG.p00008.preds,
+    groundTruth: ["pleural_effusion"],
+    primaryFindings: ["pleural_effusion"], incidentalFindings: [],
+    clinicalContext: "context.case03",
+    metadata: IMG.p00008.meta,
+  },
+  {
+    id: "case-04",
+    imageUrl: IMG.p34852.url, overlays: IMG.p34852.overlays,
+    condition: "B", category: "easy",
+    aiPredictions: IMG.p34852.preds,
+    groundTruth: ["consolidation"],
+    primaryFindings: ["consolidation"], incidentalFindings: [],
+    clinicalContext: "context.case04",
+    metadata: IMG.p34852.meta,
+  },
 
-  // --- Hard cases (8) ---
-  { id: "case-05", ...img(1), condition: "A", category: "hard", aiPredictions: makePreds(62, 28, 15, 55, 20), groundTruth: ["cardiomegaly", "atelectasis"], metadata: { age: 70, sex: "M", view: "PA" } },
-  { id: "case-06", ...img(2), condition: "A", category: "hard", aiPredictions: makePreds(18, 65, 58, 12, 30), groundTruth: ["edema", "consolidation"], metadata: { age: 55, sex: "F", view: "AP" } },
-  { id: "case-07", ...img(0), condition: "B", category: "hard", aiPredictions: makePreds(55, 20, 60, 68, 25), groundTruth: ["consolidation", "atelectasis"], metadata: { age: 48, sex: "M", view: "PA" } },
-  { id: "case-08", ...img(1), condition: "B", category: "hard", aiPredictions: makePreds(25, 58, 15, 10, 65), groundTruth: ["edema", "pleural_effusion"], metadata: { age: 62, sex: "F", view: "PA" } },
-  { id: "case-09", ...img(2), condition: "C", category: "hard", aiPredictions: makePreds(68, 22, 12, 60, 55), groundTruth: ["cardiomegaly", "pleural_effusion"], metadata: { age: 74, sex: "M", view: "AP" } },
-  { id: "case-10", ...img(0), condition: "C", category: "hard", aiPredictions: makePreds(15, 62, 70, 18, 25), groundTruth: ["edema", "consolidation"], metadata: { age: 42, sex: "F", view: "PA" } },
-  { id: "case-11", ...img(1), condition: "D", category: "hard", aiPredictions: makePreds(58, 20, 55, 65, 18), groundTruth: ["atelectasis", "consolidation"], metadata: { age: 82, sex: "M", view: "AP" }, biasWarning: "⚠ AP image · Patient age: 82 · Model performance is ~8% lower for elderly bedside patients" },
-  { id: "case-12", ...img(2), condition: "D", category: "hard", aiPredictions: makePreds(22, 60, 18, 12, 68), groundTruth: ["edema", "pleural_effusion"], metadata: { age: 78, sex: "F", view: "PA" } },
+  // =====================================================================
+  // HARD (8): multiple findings, model partially correct
+  // Clinical context determines primary vs incidental among real findings
+  // =====================================================================
+  {
+    id: "case-05",
+    imageUrl: IMG.p59546.url, overlays: IMG.p59546.overlays,
+    condition: "A", category: "hard",
+    aiPredictions: IMG.p59546.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["edema", "pleural_effusion"], incidentalFindings: ["cardiomegaly", "consolidation", "atelectasis"],
+    clinicalContext: "context.case05",
+    metadata: IMG.p59546.meta,
+  },
+  {
+    id: "case-06",
+    imageUrl: IMG.p59546.url, overlays: IMG.p59546.overlays,
+    condition: "E", category: "hard",
+    aiPredictions: IMG.p59546.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["consolidation"], incidentalFindings: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion"],
+    clinicalContext: "context.case06",
+    metadata: IMG.p59546.meta,
+  },
+  {
+    id: "case-07",
+    imageUrl: IMG.p31804.url, overlays: IMG.p31804.overlays,
+    condition: "B", category: "hard",
+    aiPredictions: IMG.p31804.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["cardiomegaly", "edema", "pleural_effusion"], incidentalFindings: ["consolidation", "atelectasis"],
+    clinicalContext: "context.case07",
+    metadata: IMG.p31804.meta,
+  },
+  {
+    id: "case-08",
+    imageUrl: IMG.p31804.url, overlays: IMG.p31804.overlays,
+    condition: "C", category: "hard",
+    aiPredictions: IMG.p31804.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["consolidation", "atelectasis"], incidentalFindings: ["cardiomegaly", "edema", "pleural_effusion"],
+    clinicalContext: "context.case08",
+    metadata: IMG.p31804.meta,
+  },
+  {
+    id: "case-09",
+    imageUrl: IMG.p38933.url, overlays: IMG.p38933.overlays,
+    condition: "C", category: "hard",
+    aiPredictions: IMG.p38933.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["cardiomegaly", "pleural_effusion"], incidentalFindings: ["edema", "consolidation", "atelectasis"],
+    clinicalContext: "context.case09",
+    metadata: IMG.p38933.meta,
+  },
+  {
+    id: "case-10",
+    imageUrl: IMG.p38933.url, overlays: IMG.p38933.overlays,
+    condition: "D", category: "hard",
+    aiPredictions: IMG.p38933.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    primaryFindings: ["edema", "consolidation"], incidentalFindings: ["cardiomegaly", "atelectasis", "pleural_effusion"],
+    clinicalContext: "context.case10",
+    metadata: IMG.p38933.meta,
+    biasWarning: "\u26A0 AP (bedside) image \u00B7 Patient age: 68 \u00B7 Bedside imaging may reduce diagnostic quality",
+  },
+  {
+    id: "case-11",
+    imageUrl: IMG.p34852.url, overlays: IMG.p34852.overlays,
+    condition: "D", category: "hard",
+    aiPredictions: IMG.p34852.preds,
+    groundTruth: ["consolidation"],
+    primaryFindings: ["consolidation"], incidentalFindings: [],
+    clinicalContext: "context.case11",
+    metadata: IMG.p34852.meta,
+    biasWarning: "\u26A0 AP image \u00B7 Patient age: 72 \u00B7 Model performance is ~8% lower for elderly bedside patients",
+  },
+  {
+    id: "case-12",
+    imageUrl: IMG.p00008.url, overlays: IMG.p00008.overlays,
+    condition: "E", category: "hard",
+    aiPredictions: IMG.p00008.preds,
+    groundTruth: ["pleural_effusion"],
+    primaryFindings: ["pleural_effusion"], incidentalFindings: [],
+    clinicalContext: "context.case12",
+    metadata: IMG.p00008.meta,
+  },
 
-  // --- Incidental cases (8) ---
-  { id: "case-13", ...img(0), condition: "A", category: "incidental", aiPredictions: makePreds(85, 10, 8, 45, 72), groundTruth: ["cardiomegaly", "pleural_effusion"], metadata: { age: 66, sex: "M", view: "PA" } },
-  { id: "case-14", ...img(1), condition: "A", category: "incidental", aiPredictions: makePreds(20, 78, 65, 10, 30), groundTruth: ["edema", "consolidation"], metadata: { age: 50, sex: "F", view: "PA" } },
-  { id: "case-15", ...img(2), condition: "B", category: "incidental", aiPredictions: makePreds(70, 55, 15, 60, 25), groundTruth: ["cardiomegaly", "edema", "atelectasis"], metadata: { age: 58, sex: "M", view: "PA" } },
-  { id: "case-16", ...img(0), condition: "B", category: "incidental", aiPredictions: makePreds(12, 30, 82, 5, 90), groundTruth: ["consolidation", "pleural_effusion"], metadata: { age: 44, sex: "F", view: "AP" } },
-  { id: "case-17", ...img(1), condition: "C", category: "incidental", aiPredictions: makePreds(45, 10, 92, 78, 55), groundTruth: ["consolidation", "atelectasis", "pleural_effusion"], metadata: { age: 71, sex: "M", view: "PA" } },
-  { id: "case-18", ...img(2), condition: "C", category: "incidental", aiPredictions: makePreds(80, 65, 25, 60, 15), groundTruth: ["cardiomegaly", "edema", "atelectasis"], metadata: { age: 63, sex: "F", view: "PA" } },
-  { id: "case-19", ...img(0), condition: "D", category: "incidental", aiPredictions: makePreds(35, 90, 70, 50, 25), groundTruth: ["edema", "consolidation"], metadata: { age: 85, sex: "M", view: "AP" }, biasWarning: "⚠ AP image · Patient age: 85 · Model performance is ~8% lower for elderly bedside patients" },
-  { id: "case-20", ...img(1), condition: "D", category: "incidental", aiPredictions: makePreds(75, 20, 15, 88, 60), groundTruth: ["cardiomegaly", "atelectasis", "pleural_effusion"], metadata: { age: 40, sex: "F", view: "PA" } },
+  // =====================================================================
+  // INCIDENTAL (8): pneumothorax present but clinical context points
+  // to a different primary complaint. The key thesis question: does AI
+  // help participants detect the incidental pneumothorax?
+  // =====================================================================
+  {
+    id: "case-13",
+    imageUrl: IMG.p05319.url, overlays: IMG.p05319.overlays,
+    condition: "A", category: "incidental",
+    aiPredictions: IMG.p05319.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["consolidation", "pleural_effusion"], incidentalFindings: ["pneumothorax", "cardiomegaly", "edema", "atelectasis"],
+    clinicalContext: "context.case13",
+    metadata: IMG.p05319.meta,
+  },
+  {
+    id: "case-14",
+    imageUrl: IMG.p05319.url, overlays: IMG.p05319.overlays,
+    condition: "C", category: "incidental",
+    aiPredictions: IMG.p05319.preds,
+    groundTruth: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["edema", "cardiomegaly"], incidentalFindings: ["pneumothorax", "consolidation", "atelectasis", "pleural_effusion"],
+    clinicalContext: "context.case14",
+    metadata: IMG.p05319.meta,
+  },
+  {
+    id: "case-15",
+    imageUrl: IMG.p36698.url, overlays: IMG.p36698.overlays,
+    condition: "B", category: "incidental",
+    aiPredictions: IMG.p36698.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["edema", "pleural_effusion"], incidentalFindings: ["pneumothorax", "cardiomegaly", "atelectasis"],
+    clinicalContext: "context.case15",
+    metadata: IMG.p36698.meta,
+  },
+  {
+    id: "case-16",
+    imageUrl: IMG.p36698.url, overlays: IMG.p36698.overlays,
+    condition: "D", category: "incidental",
+    aiPredictions: IMG.p36698.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["atelectasis", "cardiomegaly"], incidentalFindings: ["pneumothorax", "edema", "pleural_effusion"],
+    clinicalContext: "context.case16",
+    metadata: IMG.p36698.meta,
+    biasWarning: "\u26A0 AP (bedside) image \u00B7 Post-surgical patient \u00B7 Positioning may affect cardiac silhouette assessment",
+  },
+  {
+    id: "case-17",
+    imageUrl: IMG.p49165.url, overlays: IMG.p49165.overlays,
+    condition: "C", category: "incidental",
+    aiPredictions: IMG.p49165.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["edema", "pleural_effusion"], incidentalFindings: ["pneumothorax", "cardiomegaly", "atelectasis"],
+    clinicalContext: "context.case17",
+    metadata: IMG.p49165.meta,
+  },
+  {
+    id: "case-18",
+    imageUrl: IMG.p49165.url, overlays: IMG.p49165.overlays,
+    condition: "E", category: "incidental",
+    aiPredictions: IMG.p49165.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["cardiomegaly"], incidentalFindings: ["pneumothorax", "edema", "atelectasis", "pleural_effusion"],
+    clinicalContext: "context.case18",
+    metadata: IMG.p49165.meta,
+  },
+  {
+    id: "case-19",
+    imageUrl: IMG.p48367.url, overlays: IMG.p48367.overlays,
+    condition: "D", category: "incidental",
+    aiPredictions: IMG.p48367.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["edema", "pleural_effusion"], incidentalFindings: ["pneumothorax", "cardiomegaly", "atelectasis"],
+    clinicalContext: "context.case19",
+    metadata: IMG.p48367.meta,
+    biasWarning: "\u26A0 AP (bedside) image \u00B7 ICU patient \u00B7 Model confidence may be affected by support devices",
+  },
+  {
+    id: "case-20",
+    imageUrl: IMG.p48367.url, overlays: IMG.p48367.overlays,
+    condition: "B", category: "incidental",
+    aiPredictions: IMG.p48367.preds,
+    groundTruth: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    primaryFindings: ["atelectasis"], incidentalFindings: ["pneumothorax", "cardiomegaly", "edema", "pleural_effusion"],
+    clinicalContext: "context.case20",
+    metadata: IMG.p48367.meta,
+  },
 
-  // --- AI-wrong cases (4) ---
-  { id: "case-21", ...img(2), condition: "B", category: "ai_wrong", aiPredictions: makePreds(88, 82, 10, 15, 20), groundTruth: ["consolidation"], metadata: { age: 56, sex: "M", view: "PA" } },
-  { id: "case-22", ...img(0), condition: "C", category: "ai_wrong", aiPredictions: makePreds(12, 85, 80, 8, 10), groundTruth: ["pleural_effusion", "atelectasis"], metadata: { age: 65, sex: "F", view: "PA" } },
-  { id: "case-23", ...img(1), condition: "D", category: "ai_wrong", aiPredictions: makePreds(90, 10, 8, 78, 15), groundTruth: ["edema"], metadata: { age: 76, sex: "M", view: "AP" }, biasWarning: "⚠ AP (bedside) image · Model performance is ~4% lower for AP vs. PA images" },
-  { id: "case-24", ...img(2), condition: "C", category: "ai_wrong", aiPredictions: makePreds(15, 12, 88, 85, 20), groundTruth: ["cardiomegaly"], metadata: { age: 33, sex: "F", view: "PA" } },
+  // =====================================================================
+  // AI-WRONG (4): model has significant false positives or misses.
+  // These test whether participants can override incorrect AI suggestions.
+  // =====================================================================
+  {
+    id: "case-21",
+    imageUrl: IMG.p00001.url, overlays: IMG.p00001.overlays,
+    condition: "B", category: "ai_wrong",
+    aiPredictions: IMG.p00001.preds, // FPs: atelectasis 59%, pneumothorax 52%
+    groundTruth: [],
+    primaryFindings: [], incidentalFindings: [],
+    clinicalContext: "context.case21",
+    metadata: IMG.p00001.meta,
+  },
+  {
+    id: "case-22",
+    imageUrl: IMG.p00001.url, overlays: IMG.p00001.overlays,
+    condition: "C", category: "ai_wrong",
+    aiPredictions: IMG.p00001.preds, // FPs: atelectasis 59%, pneumothorax 52%
+    groundTruth: [],
+    primaryFindings: [], incidentalFindings: [],
+    clinicalContext: "context.case22",
+    metadata: IMG.p00001.meta,
+  },
+  {
+    id: "case-23",
+    imageUrl: IMG.p00004.url, overlays: IMG.p00004.overlays,
+    condition: "D", category: "ai_wrong",
+    aiPredictions: IMG.p00004.preds, // all low but not zero
+    groundTruth: [],
+    primaryFindings: [], incidentalFindings: [],
+    clinicalContext: "context.case23",
+    metadata: IMG.p00004.meta,
+    biasWarning: "\u26A0 PA image \u00B7 Young patient (20F) \u00B7 AI may produce false positives on normal anatomy",
+  },
+  {
+    id: "case-24",
+    imageUrl: IMG.p00004.url, overlays: IMG.p00004.overlays,
+    condition: "E", category: "ai_wrong",
+    aiPredictions: IMG.p00004.preds,
+    groundTruth: [],
+    primaryFindings: [], incidentalFindings: [],
+    clinicalContext: "context.case24",
+    metadata: IMG.p00004.meta,
+  },
 ];
 
-// Latin-square condition orderings (5 conditions)
+// ---------------------------------------------------------------------------
+// Latin-square condition orderings (5 conditions × 5 rows)
+// ---------------------------------------------------------------------------
 const LATIN_SQUARES: StudyCondition[][] = [
   ["A", "B", "C", "D", "E"],
   ["B", "C", "D", "E", "A"],
@@ -156,29 +592,132 @@ const LATIN_SQUARES: StudyCondition[][] = [
   ["E", "A", "B", "C", "D"],
 ];
 
+// ---------------------------------------------------------------------------
+// Fixed case sets — every participant sees the SAME images.
+// The Latin square only rotates which condition each block gets.
+// Longer time options extend the base set (FIXED_15 ⊃ FIXED_10, etc.).
+//
+// FIXED_10  — 2 cases per condition (Quick option)
+// FIXED_15  — 3 cases per condition (Standard option)
+// FIXED_20  — 4 cases per condition (Full option)
+//
+// Category balance (FIXED_20): 4 easy · 7 hard · 6 incidental · 3 ai_wrong
+// See CASE_SELECTION.md for full selection rationale.
+// ---------------------------------------------------------------------------
+
+const mk = (
+  id: string, img: typeof IMG[keyof typeof IMG],
+  category: string, gt: string[], primary: string[], incidental: string[],
+  ctx: string, bias?: string
+): CaseData => ({
+  id, imageUrl: img.url, overlays: img.overlays,
+  condition: "A", // overwritten by generateCaseOrder
+  category,
+  aiPredictions: img.preds,
+  groundTruth: gt,
+  primaryFindings: primary,
+  incidentalFindings: incidental,
+  clinicalContext: ctx,
+  metadata: img.meta,
+  ...(bias ? { biasWarning: bias } : {}),
+});
+
+// FIXED_10 — positions 1–10
+const FIXED_10: CaseData[] = [
+  // Block 1 — easy cases
+  mk("fx-01", IMG.p37124, "easy", ["edema"],             ["edema"], [],                          "context.case02"),
+  mk("fx-02", IMG.p00008, "easy", ["pleural_effusion"],  ["pleural_effusion"], [],               "context.case03"),
+  // Block 2 — hard cases
+  mk("fx-03", IMG.p59546, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["edema","pleural_effusion"], ["cardiomegaly","consolidation","atelectasis"],        "context.case05"),
+  mk("fx-04", IMG.p31804, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","edema","pleural_effusion"], ["consolidation","atelectasis"],        "context.case07"),
+  // Block 3 — incidental pneumothorax (AI detects strongly)
+  mk("fx-05", IMG.p05319, "incidental",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion","pneumothorax"],
+     ["consolidation","pleural_effusion"], ["pneumothorax","cardiomegaly","edema","atelectasis"], "context.case13"),
+  mk("fx-06", IMG.p36698, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case15"),
+  // Block 4 — easy + hard
+  mk("fx-07", IMG.p34852, "easy", ["consolidation"], ["consolidation"], [],              "context.case04"),
+  mk("fx-08", IMG.p38933, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","pleural_effusion"], ["edema","consolidation","atelectasis"],        "context.case09",
+     "⚠ AP (bedside) image · Patient age: 68 · Bedside imaging may reduce diagnostic quality"),
+  // Block 5 — AI-wrong (normal images, model over-flags)
+  mk("fx-09", IMG.p00001, "ai_wrong", [], [], [],                                        "context.case21"),
+  mk("fx-10", IMG.p00004, "ai_wrong", [], [], [],                                        "context.case23",
+     "⚠ PA image · Young patient (20F) · AI may produce false positives on normal anatomy"),
+];
+
+// FIXED_15 — extends FIXED_10 with 5 more cases (positions 11–15)
+const FIXED_15: CaseData[] = [
+  ...FIXED_10,
+  // Block 1 extension — incidental (AI strong)
+  mk("fx-11", IMG.p49165, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case17"),
+  // Block 2 extension — incidental (AI moderate)
+  mk("fx-12", IMG.p48367, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case19",
+     "⚠ AP (bedside) image · ICU patient · Model confidence may be affected by support devices"),
+  // Block 3 extension — easy (new image)
+  mk("fx-13", IMG.p32710, "easy", ["edema"], ["edema"], [],                              "context.fx13"),
+  // Block 4 extension — hard (new image, atelectasis miss)
+  mk("fx-14", IMG.p25296, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","edema"], ["consolidation","atelectasis","pleural_effusion"],        "context.fx14"),
+  // Block 5 extension — incidental (new image, AI moderate detection)
+  mk("fx-15", IMG.p49165s1, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["edema","cardiomegaly"], ["pneumothorax","atelectasis","pleural_effusion"],         "context.fx15"),
+];
+
+// FIXED_20 — extends FIXED_15 with 5 more cases (positions 16–20)
+const FIXED_20: CaseData[] = [
+  ...FIXED_15,
+  // Block 1 extension — hard (young patient)
+  mk("fx-16", IMG.p04050, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["edema","pleural_effusion"], ["cardiomegaly","consolidation","atelectasis"],        "context.fx16"),
+  // Block 2 extension — hard
+  mk("fx-17", IMG.p28936, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","edema","pleural_effusion"], ["consolidation","atelectasis"],        "context.fx17"),
+  // Block 3 extension — hard (atelectasis miss, borderline effusion)
+  mk("fx-18", IMG.p05067, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","edema"], ["consolidation","atelectasis","pleural_effusion"],        "context.fx18"),
+  // Block 4 extension — incidental (AI MISSES pneumothorax — key contrast case)
+  mk("fx-19", IMG.p37577, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["cardiomegaly","pleural_effusion"], ["pneumothorax","edema","atelectasis"],         "context.fx19"),
+  // Block 5 extension — AI-wrong clean true negative
+  mk("fx-20", IMG.p00005s1, "ai_wrong", [], [], [],                                      "context.fx20"),
+];
+
+// ---------------------------------------------------------------------------
+// generateCaseOrder — fixed-set Latin-square assignment.
+// All participants see the same images; only the condition per block rotates.
+// Block boundaries: positions [0, k), [k, 2k), ... where k = nCases/5.
+// ---------------------------------------------------------------------------
 export function generateCaseOrder(sessionIndex: number, nCases: number): CaseData[] {
   const conditionOrder = LATIN_SQUARES[sessionIndex % 5];
-  const casesPerCondition = Math.floor(nCases / 5);
-  const result: CaseData[] = [];
+  const pool = nCases <= 10 ? FIXED_10 : nCases <= 15 ? FIXED_15 : FIXED_20;
+  const casesPerBlock = Math.floor(pool.length / 5);
 
-  for (const condition of conditionOrder) {
-    const available = [...CASE_POOL];
-    const selected: CaseData[] = [];
-    let idx = 0;
-
-    while (selected.length < casesPerCondition && idx < available.length) {
-      selected.push({ ...available[idx], condition });
-      idx++;
-    }
-
-    while (selected.length < casesPerCondition) {
-      selected.push({ ...available[selected.length % available.length], condition, id: `${available[selected.length % available.length].id}-dup-${selected.length}` });
-    }
-
-    result.push(...selected.slice(0, casesPerCondition));
-  }
-
-  return result;
+  return pool.map((c, i) => ({
+    ...c,
+    condition: conditionOrder[Math.floor(i / casesPerBlock)],
+  }));
 }
 
-export const TOTAL_BLOCKS = 4;
+// Number of condition blocks (= number of Latin-square conditions).
+// casesPerBlock = nCases / TOTAL_BLOCKS must equal the value used inside
+// generateCaseOrder (pool.length / 5) so that block-break screens align
+// exactly with condition boundaries.
+export const TOTAL_BLOCKS = 5;

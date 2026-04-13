@@ -144,7 +144,7 @@ Possible explanations:
 
 ---
 
-## 4. Summary of Key Findings
+## 4. Summary of Key Findings (Run 010)
 
 | Finding | Value | Clinical Relevance |
 |---|---|---|
@@ -155,3 +155,112 @@ Possible explanations:
 | Age–View correlation | Confounding factor | Bias source partially shared |
 | Consolidation consistently hardest | AUROC 0.759, F1 0.457 | Ambiguous label, overlaps with Edema/Pneumonia |
 | Threshold 0.5 near-optimal | T-opt range: 0.45–0.57 | No need for per-label threshold tuning in practice |
+
+---
+---
+
+# Extended Analysis Results — Run 014 (DenseNet121 6-labels, Production Model)
+
+**Model:** DenseNet121 6-labels (5 core + Pneumothorax, no Fracture)
+**Checkpoint:** `checkpoints/densenet121/run014_densenet121_6labels_ep09_val0.8038_test0.8361.pt`
+**Date:** 13. April 2026
+**Validation set:** `CheXpert-v1.0-small/val_proper.csv` — 8,240 frontal samples
+**Test set:** `CheXpert-v1.0-small/test.csv` — 28,639 frontal samples
+
+---
+
+## 5. Temperature Scaling / Calibration (Run 014)
+
+> Script: `scripts/calibrate.py`
+> Output: `checkpoints/densenet121/run014_..._temp.json`, `outputs/calibration/run014_..._reliability.png`
+
+### Results
+
+| Metric | Before calibration | After calibration |
+|---|---|---|
+| Temperature T | 1.000 | **1.007** |
+| ECE (all labels) | 0.1408 | 0.1410 |
+| Mean AUROC | 0.8389 | 0.8389 |
+
+### Brier Score per Label
+
+| Label | Before | After |
+|---|---|---|
+| Cardiomegaly | 0.1259 | 0.1258 |
+| Edema | 0.1535 | 0.1534 |
+| Consolidation | 0.2045 | 0.2044 |
+| Atelectasis | 0.2058 | 0.2058 |
+| Pleural Effusion | 0.1363 | 0.1363 |
+| Pneumothorax | 0.1063 | 0.1064 |
+
+### Interpretation
+
+- **T = 1.007** is even closer to 1.0 than Run 010 (T = 1.043), confirming exceptional calibration.
+- ECE is virtually unchanged (0.1408 vs 0.1410), meaning temperature scaling provides **no benefit**.
+- Pneumothorax has the lowest Brier score (0.1063), consistent with its highest AUROC (0.91).
+- The 6-label model's confidence scores are directly usable in the user study without any post-hoc adjustment.
+
+---
+
+## 6. Fairness Analysis (Run 014)
+
+> Script: `scripts/fairness_analysis.py`
+> Outputs: `outputs/fairness/run014_..._fairness_{sex,age,view}.png`, `outputs/fairness/run014_..._fairness_summary.csv`
+
+### 6.1 Sex
+
+| Label | Male (n=16,822) | Female (n=11,817) | Delta |
+|---|---|---|---|
+| Cardiomegaly | 0.8723 | 0.8800 | +0.008 |
+| Edema | 0.8642 | 0.8654 | +0.001 |
+| Consolidation | 0.7371 | 0.7481 | +0.011 |
+| Atelectasis | 0.7452 | 0.7360 | -0.009 |
+| Pleural Effusion | 0.8779 | 0.8877 | +0.010 |
+| Pneumothorax | 0.9056 | 0.9200 | +0.014 |
+| **MEAN** | **0.8337** | **0.8395** | **+0.006** |
+
+**Interpretation:** No meaningful sex bias. Mean delta of 0.006 is within noise. Pneumothorax shows the largest single delta (+0.014 favoring Female), still clinically insignificant. Pattern is consistent with Run 010.
+
+### 6.2 Age Groups
+
+| Label | <=40 (n=4,164) | 41-60 (n=9,107) | 61-80 (n=11,075) | 80+ (n=4,292) |
+|---|---|---|---|---|
+| Cardiomegaly | 0.9081 | 0.8815 | 0.8654 | 0.8347 |
+| Edema | 0.8781 | 0.8632 | 0.8607 | 0.8468 |
+| Consolidation | 0.7893 | 0.7348 | 0.7349 | 0.7197 |
+| Atelectasis | 0.7978 | 0.7569 | 0.7214 | 0.7070 |
+| Pleural Effusion | 0.8972 | 0.8911 | 0.8673 | 0.8693 |
+| Pneumothorax | 0.9175 | 0.9134 | 0.9064 | 0.9014 |
+| **MEAN** | **0.8635** | **0.8403** | **0.8260** | **0.8122** |
+
+**Interpretation:** Same monotonic age decline as Run 010. Delta between youngest and oldest = 0.051 (vs 0.056 in Run 010). Pneumothorax is notably robust across age groups (0.90-0.92), making it the most age-invariant label. Atelectasis degrades most with age (delta = 0.091).
+
+### 6.3 View: AP vs PA
+
+| Label | AP (n=24,249, 85%) | PA (n=4,389, 15%) | Delta |
+|---|---|---|---|
+| Cardiomegaly | 0.8749 | 0.8812 | +0.006 |
+| Edema | 0.8453 | 0.8985 | +0.053 |
+| Consolidation | 0.7341 | 0.7718 | +0.038 |
+| Atelectasis | 0.7260 | 0.8037 | +0.078 |
+| Pleural Effusion | 0.8732 | 0.9121 | +0.039 |
+| Pneumothorax | 0.9117 | 0.9068 | -0.005 |
+| **MEAN** | **0.8275** | **0.8624** | **+0.035** |
+
+**Interpretation:** PA images consistently outperform AP (delta = 0.035, vs 0.043 in Run 010 -- slightly narrower gap). Notably, Pneumothorax is the only label where AP marginally outperforms PA (-0.005), likely because pneumothorax is more commonly detected in supine/AP positioning. Atelectasis shows the largest AP/PA gap (0.078), consistent with Run 010.
+
+---
+
+## 7. Summary of Key Findings (Run 014 vs Run 010)
+
+| Finding | Run 010 (5-label) | Run 014 (6-label) | Change |
+|---|---|---|---|
+| Temperature T | 1.043 | 1.007 | Better calibrated |
+| ECE | 0.145 | 0.141 | Slightly improved |
+| Sex bias (mean delta) | 0.005 | 0.006 | Equivalent |
+| Age bias (youngest-oldest delta) | 0.056 | 0.051 | Slightly narrower |
+| View bias (AP-PA delta) | 0.043 | 0.035 | Slightly narrower |
+| Hardest label | Consolidation (0.759) | Consolidation (0.742) | Slight drop |
+| New: Pneumothorax AUROC | N/A | 0.911 | Strongest label |
+
+**Key takeaway:** Adding Pneumothorax as a 6th label did not degrade fairness characteristics. The 6-label model is marginally better calibrated and has slightly narrower bias gaps than the 5-label model, while adding a high-performing new label (Pneumothorax AUROC = 0.911).

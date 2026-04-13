@@ -6,6 +6,7 @@ import edemaImg from "@/assets/findings/edema.jpg";
 import consolidationImg from "@/assets/findings/consolidation.jpg";
 import atelectasisImg from "@/assets/findings/atelectasis.jpg";
 import pleuralEffusionImg from "@/assets/findings/pleural_effusion.png";
+import pneumothoraxImg from "@/assets/findings/pneumothorax.jpg";
 
 interface FindingsReferenceProps {
   language: "en" | "de";
@@ -18,6 +19,7 @@ const FINDINGS = [
   { id: "consolidation", color: "hsl(30, 70%, 60%)", img: consolidationImg },
   { id: "atelectasis", color: "hsl(270, 70%, 60%)", img: atelectasisImg },
   { id: "pleural_effusion", color: "hsl(160, 70%, 60%)", img: pleuralEffusionImg },
+  { id: "pneumothorax", color: "hsl(50, 70%, 60%)", img: pneumothoraxImg },
 ];
 
 const labels: Record<string, { en: string; de: string }> = {
@@ -36,6 +38,9 @@ const labels: Record<string, { en: string; de: string }> = {
   "pleural_effusion": { en: "Pleural Effusion", de: "Pleuraerguss" },
   "pleural_effusion.desc": { en: "Fluid around the lungs", de: "Flüssigkeit um die Lunge" },
   "pleural_effusion.detail": { en: "Fluid between the visceral and parietal pleura. Appears as blunting of costophrenic angles (small effusion) or a meniscus sign with white-out of the lower hemithorax (large effusion).", de: "Flüssigkeit zwischen viszeraler und parietaler Pleura. Zeigt sich als Verschattung der kostodiaphragmalen Winkel (kleiner Erguss) oder als Meniskuszeichen mit Verschattung des unteren Hemithorax (großer Erguss)." },
+  "pneumothorax": { en: "Pneumothorax", de: "Pneumothorax" },
+  "pneumothorax.desc": { en: "Air in the pleural space", de: "Luft im Pleuraspalt" },
+  "pneumothorax.detail": { en: "Air between the lung and chest wall. Look for a thin visceral pleural line with absent lung markings beyond it, usually best seen at the apex. Can range from a subtle apical sliver to complete lung collapse.", de: "Luft zwischen Lunge und Brustwand. Achten Sie auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen." },
   title: { en: "Findings Reference", de: "Befund-Referenz" },
   placeholder: { en: "Example X-ray will be shown here", de: "Beispiel-Röntgenbild wird hier angezeigt" },
 };

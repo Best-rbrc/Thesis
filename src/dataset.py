@@ -69,11 +69,16 @@ class CheXpertDataset(Dataset):
             transform: torchvision transforms to apply to each image.
             frontal_only: If True, keep only frontal-view images.
             uncertainty_strategy: Global fallback for uncertain labels (-1).
-                "u-ones"  → map -1 → 1  (treat uncertain as positive)
-                "u-zeros" → map -1 → 0  (treat uncertain as negative)
-                "u-ignore"→ map -1 → 0  (same as u-zeros for BCE)
-                "u-mask"  → keep as -1 so loss can mask it
-                "u-mixed" → use per_label_strategies dict per label
+                "u-ones"   → map -1 → 1  (treat uncertain as positive)
+                "u-zeros"  → map -1 → 0  (treat uncertain as negative)
+                "u-ignore" → map -1 → 0  (same as u-zeros for BCE)
+                "u-mask"   → keep -1 as -1 so loss masks it; NaN → 0 (implicit neg)
+                "nan-mask" → NaN AND -1 both → -1 so loss masks them; only
+                             explicit 0/1 labels contribute to loss.  Use for
+                             labels with very high NaN rates (e.g. Fracture 94%)
+                             where treating NaN as negative floods training with
+                             false negatives.
+                "u-mixed"  → use per_label_strategies dict per label
             per_label_strategies: Per-label override dict, e.g.
                 {"Consolidation": "u-ones", "Cardiomegaly": "u-zeros"}.
                 Only used when uncertainty_strategy == "u-mixed" or as
@@ -106,6 +111,13 @@ class CheXpertDataset(Dataset):
                 # NaN (not mentioned) → 0  (implicit negative)
                 # -1  (uncertain)     → kept as -1 so the loss function can mask it
                 df[col] = df[col].fillna(0.0)
+            elif col_strategy == "nan-mask":
+                # NaN (not mentioned) → -1  (masked, same as uncertain)
+                # -1  (uncertain)     → -1  (masked)
+                # Only explicit 0/1 labels contribute to the loss.
+                # Use for labels with very high NaN rates (e.g. Fracture ~94%)
+                # where NaN-as-0 would flood training with false negatives.
+                df[col] = df[col].fillna(-1.0)
             elif col_strategy == "u-mixed":
                 raise ValueError(
                     f'"u-mixed" is not valid as a per-label strategy for {col!r}. '
@@ -114,7 +126,7 @@ class CheXpertDataset(Dataset):
             else:
                 raise ValueError(
                     f"Unknown uncertainty strategy {col_strategy!r} for label {col!r}. "
-                    "Choose from: u-ones, u-zeros, u-ignore, u-mask"
+                    "Choose from: u-ones, u-zeros, u-ignore, u-mask, nan-mask"
                 )
 
         self.df = df
@@ -179,15 +191,25 @@ def compute_pos_weights(
     weights = []
     for col in target_labels:
         strategy = per_label_strategies.get(col, global_strategy)
-        series = df[col].fillna(0.0)
-        if strategy == "u-ones":
-            series = series.replace(-1.0, 1.0)
-        elif strategy in ("u-zeros", "u-ignore", "u-mask"):
-            # For pos_weight purposes treat uncertain as negative
-            series = series.replace(-1.0, 0.0)
-        n_pos = float((series > 0.5).sum())
-        n_neg = float((series <= 0.5).sum())
+
+        if strategy == "nan-mask":
+            # Only count explicitly labeled rows (0 or 1); exclude NaN and
+            # uncertain (-1) since both are masked in the loss.
+            labeled = df[col].dropna()
+            labeled = labeled[labeled != -1.0]
+            n_pos = float((labeled > 0.5).sum())
+            n_neg = float((labeled <= 0.5).sum())
+        else:
+            series = df[col].fillna(0.0)
+            if strategy == "u-ones":
+                series = series.replace(-1.0, 1.0)
+            elif strategy in ("u-zeros", "u-ignore", "u-mask"):
+                series = series.replace(-1.0, 0.0)
+            n_pos = float((series > 0.5).sum())
+            n_neg = float((series <= 0.5).sum())
+
         n_pos = max(n_pos, 1.0)  # avoid division by zero
+        n_neg = max(n_neg, 1.0)
         weights.append(n_neg / n_pos)
         print(f"  pos_weight [{col}]: {n_neg/n_pos:.2f}  "
               f"(pos={int(n_pos):,}  neg={int(n_neg):,})")

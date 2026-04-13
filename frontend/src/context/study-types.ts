@@ -6,6 +6,9 @@ export type Language = "en" | "de";
 export interface UserProfile {
   timeAvailable: number;
   experienceLevel: string;
+  ageRange: string;
+  sex: string;
+  country: string;
   semester: string;
   specialty: string[];
   xrayExperience: string;
@@ -33,7 +36,7 @@ export interface CaseResponse {
   aiHelpful?: number;
   xaiHelpful?: "helped" | "neutral" | "misleading";
   xaiFaithful?: "yes" | "partially" | "no" | "unsure";
-  xaiViewSelected?: "original" | "gradcam" | "intgrad";
+  xaiViewSelected?: "original" | "gradcam";
   xaiOverlayFinding?: string;
   changedMindSelfReport?: boolean;
   responseTimePreMs: number;

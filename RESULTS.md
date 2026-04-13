@@ -69,6 +69,8 @@ All splits are **patient-level** (no patient appears in more than one split).
 | 010 | **DenseNet121 perclass (per-label U + pos_weight)** | 2026-03-11 | 10 | 0.7925 | **0.8298** |
 | 011 | DenseNet121 perclass longer (patience=7 ablation) | 2026-03-15 | 7 | 0.7931 | 0.8145 |
 | 012 | **DenseNet121 7-labels** (+ Fracture, Pneumothorax) | 2026-03-30 | 7 | 0.8015 | **0.8269** *(7-label mean)* / 0.8073 *(5-label mean)* |
+| 013 | DenseNet121 7-labels v2 (nan-mask for Fracture + Pneumothorax) | 2026-04-01 | 8 | 0.7390 | 0.7623 *(7-label mean)* / 0.8180 *(5-label mean)* |
+| 014 | **DenseNet121 6-labels** (5 core + Pneumothorax, no Fracture) | 2026-04-01 | 9 | 0.8038 | **0.8361** *(6-label mean)* |
 | — | Swin-Tiny v2 + TTA | 2026-02-27 | — | — | 0.8089 |
 | — | Swin-Tiny v3 + TTA | 2026-02-13 | — | — | 0.8095 |
 | — | DenseNet121-CXR + TTA | 2026-02-28 | — | — | 0.7871 |
@@ -190,6 +192,41 @@ Same per-label U-strategy + pos_weight as Run 008. Consolidation and Atelectasis
 | **Mean (5-label only)** | **0.8073** | — | — | — | **−0.0225** |
 
 **Expanding to 7 labels reduces performance on the original 5 labels.** The 5-label mean AUROC drops from 0.8298 (Run 010) to 0.8073 (−0.0225), with the largest degradation on Consolidation (−0.044) and Atelectasis (−0.030) — the two hardest labels. The two new labels, Fracture (0.8666) and Pneumothorax (0.8854), achieve strong AUROC despite being added in a multi-task setting. However, their F1 scores are low: Fracture F1-opt=0.2150 (very low prevalence), Pneumothorax F1-opt=0.5097. The inflated 7-label mean AUROC (0.8269) should not be compared directly to Run 010 (0.8298) since the label sets differ. This model is the one selected for deployment in the user study due to its clinical breadth (7 labels) and strong per-label AUROC.
+
+---
+
+### Run 013 — DenseNet121 7-labels v2 (nan-mask for Fracture + Pneumothorax)
+
+| Label | AUROC | F1@0.5 | F1-opt | T-opt | Δ AUROC vs Run 012 |
+|---|---|---|---|---|---|
+| Cardiomegaly | 0.8694 | 0.5727 | 0.5430 | 0.35 | +0.0040 |
+| Edema | 0.8645 | 0.6926 | 0.6980 | 0.53 | +0.0082 |
+| Consolidation | 0.7378 | 0.4347 | 0.4362 | 0.49 | +0.0229 |
+| Atelectasis | 0.7364 | 0.5675 | 0.5678 | 0.50 | +0.0129 |
+| Pleural Effusion | 0.8818 | 0.7826 | 0.7902 | 0.42 | +0.0055 |
+| Fracture | **0.3988** | 0.0664 | 0.0425 | 0.95 | **−0.4678** |
+| Pneumothorax | 0.8475 | 0.3919 | 0.4634 | 0.64 | −0.0379 |
+| **Mean (7-label)** | **0.7623** | **0.4726** | **0.4916** | — | **−0.0646** |
+| **Mean (5-label only)** | **0.8180** | — | — | — | **+0.0107** |
+
+**Fracture collapses to 0.3988 AUROC (sub-random).** Switching to `nan-mask` reduces the training set for Fracture to only ~9,836 labeled rows, which is insufficient for stable learning in a 7-label multi-task setting. The 5 core labels actually improve slightly vs. Run 012 (5-label mean +0.0107), confirming the nan-mask strategy is not harmful for well-represented labels. This run is **not used** in the user study. Run 012 remains the production model.
+
+---
+
+### Run 014 — DenseNet121 6-labels (5 core + Pneumothorax, no Fracture)
+
+| Label | AUROC | F1@0.5 | F1-opt | T-opt | Δ AUROC vs Run 010 | Δ AUROC vs Run 012 |
+|---|---|---|---|---|---|---|
+| Cardiomegaly | 0.8755 | 0.5611 | 0.5532 | 0.46 | −0.0061 | +0.0101 |
+| Edema | 0.8647 | 0.6926 | 0.6964 | 0.55 | −0.0047 | +0.0084 |
+| Consolidation | 0.7418 | 0.4408 | 0.4404 | 0.49 | −0.0169 | +0.0269 |
+| Atelectasis | 0.7414 | 0.5721 | 0.5721 | 0.50 | −0.0118 | +0.0179 |
+| Pleural Effusion | 0.8820 | 0.7862 | 0.7862 | 0.50 | −0.0041 | +0.0057 |
+| Pneumothorax | 0.9113 | 0.5583 | 0.5629 | 0.51 | *(new)* | +0.0259 |
+| **Mean (6-label)** | **0.8361** | **0.6019** | **0.6019** | — | — | — |
+| **Mean (5-label only)** | **0.8211** | — | — | — | **−0.0087** | **+0.0138** |
+
+**Dropping Fracture recovers most of the 5-label degradation.** The 5-label mean AUROC (0.8211) is substantially better than Run 012 (0.8073, +0.0138), confirming that Fracture's presence in the loss was dragging down the core labels. Compared to the 5-label-only Run 010 (0.8298), the gap narrows to −0.0087 (from −0.0225 in Run 012). Pneumothorax achieves an excellent **0.9113 AUROC** and F1-opt of 0.5629, substantially outperforming its Run 012 result (0.8854 / 0.5097). This is now the **production model for the user study**, replacing Run 012.
 
 ---
 
@@ -511,6 +548,26 @@ Checkpoint: [`checkpoints/densenet121/run012_densenet121_7labels_ep07_val0.8015_
 
 ---
 
+### Run 014 — DenseNet121 6-labels
+
+| Parameter | Value |
+|---|---|
+| Architecture | `densenet121` (torchvision) |
+| Pretrained | ImageNet-1k |
+| Image size | 224×224 |
+| Batch size | 64 |
+| Epochs (best) | 9 |
+| Val AUROC (saved) | 0.8038 |
+| Uncertainty strategy | **u-mixed** (per-label) |
+| Per-label strategies | Cardiomegaly: u-zeros, Edema: u-ones, Consolidation: u-ones, Atelectasis: u-ones, Pleural Effusion: u-zeros, Pneumothorax: u-ones |
+| pos_weight | **true** |
+| Labels | Cardiomegaly, Edema, Consolidation, Atelectasis, Pleural Effusion, Pneumothorax |
+
+Config: [`configs/archive/run014_densenet121_6labels_2026-04-01/densenet121_6labels.yaml`](configs/archive/run014_densenet121_6labels_2026-04-01/densenet121_6labels.yaml)  
+Checkpoint: [`checkpoints/densenet121/run014_densenet121_6labels_ep09_val0.8038_test0.8361.pt`](checkpoints/densenet121/run014_densenet121_6labels_ep09_val0.8038_test0.8361.pt)
+
+---
+
 ## Post-hoc Evaluation (no retraining)
 
 ### TTA — Swin-Tiny perclass (Run 008 + horizontal flip average)
@@ -663,6 +720,10 @@ Test set (frontal only): **28,639** samples. Stratum sizes: **16,039** with 0–
 15. **DenseNet121 perclass + TTA achieves the overall best result (0.8334):** TTA adds a further +0.0036, bringing Run 010 to **0.8334**, the highest score in all experiments. All labels improve consistently.
 16. **The 3-model perclass ensemble (0.8295) is marginally worse than DenseNet121 perclass alone (0.8298):** Averaging logits from Swin-Tiny (0.8129) and ViT-Base (0.8118) with DenseNet (0.8298) slightly dilutes the ensemble, especially on Consolidation (−0.0045) and Atelectasis (−0.0021) where DenseNet is clearly the strongest. Only the shared strong labels (Cardiomegaly, Edema, Pleural Effusion) show small gains (+0.0016–0.0018). This demonstrates that ensemble gains require model diversity **and** comparable individual strength; including consistently weaker models can hurt the best-performing label scores.
 17. **Increasing DenseNet121 perclass patience from 5 to 7 hurts performance (Run 011, 0.8145):** The longer-patience ablation underperforms Run 010 by **−0.0153** mean AUROC and is worse on every label. This indicates that Run 010 was not prematurely stopped; extra patience does not recover a better checkpoint and instead leads to a weaker final model on the held-out test set.
+19. **Run 013 — nan-mask for Fracture + Pneumothorax backfires badly (0.7623 mean AUROC):** Switching Fracture and Pneumothorax to `nan-mask` was predicted to fix the false-negative flood for Fracture (94.5% NaN). In practice the model stopped at epoch 8 with val AUROC 0.7390 — far below Run 012 (val 0.8015). Most critically, **Fracture AUROC collapsed to 0.3988 (worse than random)**, indicating the label became unlearnable under nan-mask with only ~9,836 labeled rows. Pneumothorax held up well (0.8475) and the 5 core labels are individually competitive (5-label mean 0.8180), but the Fracture failure drags the 7-label mean to 0.7623, −0.0646 vs. Run 012. Conclusion: `nan-mask` fails for Fracture because the labeled positives are too sparse for stable training; `u-ones` (Run 012) is the better strategy despite the theoretical false-negative concern. **Run 012 remains the production model for the user study.**
+
+20. **Dropping Fracture recovers performance (Run 014, 0.8361 6-label mean / 0.8211 5-label mean):** Removing the problematic Fracture label while keeping Pneumothorax yields the best multi-label result with clinical breadth. The 5-label mean (0.8211) recovers most of the Run 010 baseline (0.8298, Δ −0.0087), far better than the 7-label Run 012 (0.8073, Δ −0.0225). Pneumothorax AUROC jumps to **0.9113** (from 0.8854 in Run 012), and F1-opt improves to 0.5629 (from 0.5097). This confirms Fracture was actively harmful: its noisy gradients degraded both itself and the co-trained labels. **Run 014 is the new production model for the user study.**
+
 18. **Expanding to 7 labels degrades performance on the original 5 (Run 012, 0.8073 on 5-label mean):** Adding Fracture and Pneumothorax reduces the 5-label mean AUROC from 0.8298 (Run 010) to 0.8073 (−0.0225). The hardest labels suffer most: Consolidation −0.044, Atelectasis −0.030. Despite this, the 7-label model is selected for the user study due to its clinical breadth. The two new labels achieve strong AUROC (Fracture 0.8666, Pneumothorax 0.8854) but low F1 (Fracture F1-opt=0.2150, Pneumothorax F1-opt=0.5097), reflecting their lower prevalence. Note: the reported mean AUROC of 0.8269 spans 7 labels and is not directly comparable to earlier 5-label means.
 
 ---
@@ -696,6 +757,12 @@ uv run python -m src.evaluate \
 uv run python -m src.evaluate \
   --config configs/archive/run012_densenet121_7labels_2026-03-30/densenet121_7labels.yaml \
   --checkpoint checkpoints/densenet121/run012_densenet121_7labels_ep07_val0.8015_test0.8269.pt \
+  --split test
+
+# Evaluate 6-label DenseNet121 (Run 014 — production model)
+uv run python -m src.evaluate \
+  --config configs/archive/run014_densenet121_6labels_2026-04-01/densenet121_6labels.yaml \
+  --checkpoint checkpoints/densenet121/run014_densenet121_6labels_ep09_val0.8038_test0.8361.pt \
   --split test
 ```
 

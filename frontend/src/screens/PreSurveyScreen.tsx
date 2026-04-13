@@ -3,11 +3,11 @@ import { ChevronRight } from "lucide-react";
 import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
 
-const JIAN_ITEMS = ["jian.1", "jian.2", "jian.3", "jian.4", "jian.5", "jian.6"];
+const JIAN_ITEMS = ["jian.1", "jian.2", "jian.3", "jian.4", "jian.5", "jian.6", "jian.7", "jian.8", "jian.9"];
 
 const PreSurveyScreen = () => {
   const { setScreen, setPreTrustItems, t, jianItemOrder, sessionCode } = useStudy();
-  const [ratings, setRatings] = useState<number[]>(new Array(6).fill(4));
+  const [ratings, setRatings] = useState<number[]>(new Array(9).fill(4));
 
   // Randomized display order
   const displayOrder = useMemo(() => jianItemOrder, [jianItemOrder]);

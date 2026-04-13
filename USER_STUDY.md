@@ -19,7 +19,7 @@ Exact runtime flow in the app:
 1. `landing`
 2. `consent`
 3. `welcome` (demographics + time budget)
-4. `interface-tutorial` (4-step preparation: anatomy overview, 5 findings with examples, findings checkboxes, confidence slider; **no AI content**)
+4. `interface-tutorial` (4-step preparation: anatomy overview, 6 findings with examples, findings checkboxes, confidence slider; **no AI content**)
 5. `baseline` (4 unassisted practice/baseline cases)
 6. `pre-survey` (Jian 6-item trust scale, pre)
 7. `tutorial` (2-step AI feature tutorial: AI confidence bars, heatmaps & bias warnings)
@@ -32,7 +32,7 @@ Exact runtime flow in the app:
 
 **Design rationale — two-stage tutorial split:**
 The tutorial is intentionally split into two parts to satisfy both UX and scientific validity requirements:
-- `interface-tutorial` (pre-baseline): 4 steps — (1) anatomy orientation, (2) the 5 findings with expandable clinical detail and example images, (3) how to use the findings checkboxes, (4) how to use the confidence slider. Contains **no AI-related content**, so it cannot prime AI-biased responses. Showing anatomy and findings before the baseline is scientifically sound: participants need to know what they are looking for; the restriction applies only to AI exposure.
+- `interface-tutorial` (pre-baseline): 4 steps — (1) anatomy orientation, (2) the 6 findings with expandable clinical detail and example images, (3) how to use the findings checkboxes, (4) how to use the confidence slider. Contains **no AI-related content**, so it cannot prime AI-biased responses. Showing anatomy and findings before the baseline is scientifically sound: participants need to know what they are looking for; the restriction applies only to AI exposure.
 - `tutorial` (post-baseline): 2 steps — (1) AI confidence bars, (2) heatmap overlays and bias warnings. Shown **after** the baseline so that AI content never contaminates the unassisted baseline measurement.
 
 Notes:
@@ -100,10 +100,10 @@ Condition explainer modal appears when condition changes.
 ## 6) Case and Block Assignment (Current Logic)
 
 ### Time budget mapping
-Configured mapping in code:
-- 10 min -> `n_cases = 8`
-- 20 min -> `n_cases = 16`
-- 30 min -> `n_cases = 24`
+Configured mapping in code (values are multiples of 5 for clean Latin-square allocation):
+- 10 min -> `n_cases = 10`
+- 20 min -> `n_cases = 15`
+- 30 min -> `n_cases = 20`
 
 ### Main-case generation
 `generateCaseOrder(sessionIndex, nCases)` currently:
@@ -117,12 +117,10 @@ Configured mapping in code:
 - block transitions happen after every `casesPerBlock` submitted cases
 
 ### Important implementation implications
-Because of `floor(nCases / 5)` with 5 conditions:
-- 10-min path (`n_cases=8`) -> 5 main + 1 attention check = 6 displayed trial cases
-- 20-min path (`n_cases=16`) -> 15 main + 1 attention check = 16 displayed trial cases
-- 30-min path (`n_cases=24`) -> 20 main + 1 attention check = 21 displayed trial cases
-
-So the displayed trial count does **not** always equal `n_cases`.
+With `floor(nCases / 5)` and `nCases` always a multiple of 5:
+- 10-min path (`n_cases=10`) -> 10 main (2 per condition) + 1 attention check = 11 displayed trial cases
+- 20-min path (`n_cases=15`) -> 15 main (3 per condition) + 1 attention check = 16 displayed trial cases
+- 30-min path (`n_cases=20`) -> 20 main (4 per condition) + 1 attention check = 21 displayed trial cases
 
 ## 7) Data Persistence Model (Supabase)
 
@@ -181,14 +179,91 @@ ALTER TABLE public.study_trials ADD COLUMN IF NOT EXISTS ai_preds JSONB;
 - In leave-confirmation modal, session code is directly clickable to copy
 - Top header includes custom lung/chest icon and findings quick-reference modal
 
-## 10) Current Known Deviations vs Original Plan
+## 10) AI Model and Target Labels
+
+**Production model:** Run 014 — DenseNet121, 6-label (test AUROC 0.8361).
+
+Config: `configs/densenet121_6labels.yaml`
+Checkpoint: `checkpoints/densenet121/run014_densenet121_6labels_ep09_val0.8038_test0.8361.pt`
+
+### 6 target labels
+
+| # | Label | Slug (code) |
+|---|---|---|
+| 1 | Cardiomegaly | `cardiomegaly` |
+| 2 | Edema | `edema` |
+| 3 | Consolidation | `consolidation` |
+| 4 | Atelectasis | `atelectasis` |
+| 5 | Pleural Effusion | `pleural_effusion` |
+| 6 | Pneumothorax | `pneumothorax` |
+
+Fracture was dropped after Run 012/013 showed unusable F1 (0.2150 / collapsed to sub-random). Pneumothorax was retained (AUROC 0.9113, F1-opt 0.5629) and serves as the primary incidental finding for the study.
+
+### Explainability overlays
+
+For each study image, two XAI methods produce per-label transparent RGBA overlays:
+- **Grad-CAM**: `scripts/gradcam.py --study-overlays`
+- **Integrated Gradients**: `scripts/integrated_gradients.py --study-overlays`
+
+File naming: `{patient}_{study}_view1_frontal_{gradcam|intgrad}_{finding_slug}.png`
+
+## 11) Primary vs Incidental Findings Design
+
+This is the **core experimental design element** (per Expose.md RQ1).
+
+### Concept
+
+- **Primary finding**: a pathology directly related to the patient's chief complaint (the reason for the X-ray).
+- **Incidental finding**: a pathology present on the image but unrelated to the referral reason.
+
+The same image can have different primary/incidental splits depending on the clinical context. For example, an image showing both cardiomegaly and pneumothorax:
+- Context "cardiac follow-up" → cardiomegaly is primary, pneumothorax is incidental
+- Context "acute respiratory distress" → pneumothorax might be primary
+
+### Implementation
+
+Each case in `mockData.ts` has:
+- `groundTruth: string[]` — actual CheXpert-verified findings on the image (fixed per image)
+- `primaryFindings: string[]` — subset of groundTruth related to the clinical context
+- `incidentalFindings: string[]` — remaining groundTruth findings
+- `clinicalContext: string` — translation key for a bilingual clinical vignette (en/de)
+
+Participants see:
+1. The clinical context vignette (displayed above findings panel)
+2. A flat checklist of 6 findings + "no finding present"
+3. They are **not** told which findings are primary vs incidental
+
+The primary/incidental distinction is used **only in analysis** to measure:
+- Sensitivity for primary findings (expected to be higher)
+- Sensitivity for incidental findings (the key thesis question: does AI help?)
+- Whether AI conditions (B-E) improve incidental finding detection vs control (A)
+
+### Case categories
+
+| Category | Count | Description |
+|---|---|---|
+| `easy` | 4 | Single dominant finding, AI correctly identifies it |
+| `hard` | 8 | Multiple findings, some primary and some incidental based on context |
+| `incidental` | 8 | Pneumothorax present as incidental finding; clinical context points to different primary complaint |
+| `ai_wrong` | 4 | Normal X-ray where model has false positives (atelectasis, pneumothorax) |
+
+### Image selection
+
+13 real CheXpert-v1.0-small frontal images selected to cover the required pathology patterns:
+- 4 single-finding images (cardiomegaly, edema, pleural effusion, consolidation)
+- 3 multi-finding images (all 5 core labels positive, no pneumothorax)
+- 4 pneumothorax images (pneumothorax + multiple other findings)
+- 2 normal images (No Finding = 1.0 in CheXpert)
+
+All AI predictions shown to participants are the **actual Run 014 model sigmoid outputs** (rounded to integer percentages). All overlays are generated from the same model. This ensures consistency between numeric predictions and visual explanations.
+
+## 12) Current Known Deviations vs Original Plan
 
 1. The app currently includes **5 conditions (A-E)**, while earlier plans often described 4.
-2. Case-count math is driven by 5-condition allocation (`floor(nCases / 5)`), which reduces displayed trial cases for 10-min and 30-min tracks.
-3. Mock case assets are still placeholder image URLs in `src/data/mockData.ts` (real CheXpert case pack not wired yet).
-4. Overlay visuals in trial are currently synthetic gradients unless real per-case overlay assets are connected.
+2. `TIME_TO_CASES` values (10, 15, 20) are clean multiples of 5 so `generateCaseOrder` allocates exactly `nCases` main cases (2, 3, or 4 per condition).
+3. The study uses 6 target labels (5 core + Pneumothorax), expanded from the original 5 to support primary/incidental finding analysis.
 
-## 11) Practical Run Checklist
+## 13) Practical Run Checklist
 
 Before running participants:
 
@@ -201,7 +276,8 @@ Before running participants:
   - [ ] `study_block_surveys`
   - [ ] `study_email_subscriptions` (if email entered)
 - [ ] Verify resume by copying session code, leaving, and resuming
-- [ ] Replace placeholder case/image assets if running final study
+- [ ] Verify all 13 study images + overlays are in `frontend/public/cases/`
+- [ ] Verify `mockData.ts` ground truths match CheXpert CSV labels
 
 ---
 

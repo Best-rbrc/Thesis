@@ -15,7 +15,7 @@ This study puts a functional AI diagnostic tool in the hands of medical professi
 ## Who is it for?
 
 - Medical students or doctors of any specialty
-- No prior radiology expertise required. Participants at all experience levels are welcome, as varying levels of expertise provide valuable insight
+- No prior radiology expertise required. Participants at all experience levels are welcome, as varying levels of expertise provide valuable insight. Even with no prior X-ray experience, your contribution is genuinely valuable - the study is designed so that you can work through every case using your medical knowledge and educated judgment
 - Available in **English and German**
 
 ## What does participation involve?

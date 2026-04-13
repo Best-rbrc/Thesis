@@ -8,8 +8,9 @@ import edemaImg from "@/assets/findings/edema.jpg";
 import consolidationImg from "@/assets/findings/consolidation.jpg";
 import atelectasisImg from "@/assets/findings/atelectasis.jpg";
 import pleuralEffusionImg from "@/assets/findings/pleural_effusion.png";
+import pneumothoraxImg from "@/assets/findings/pneumothorax.jpg";
 
-const MOCK_FINDINGS = ["Finding A", "Finding B", "Finding C", "Finding D", "Finding E"];
+const MOCK_FINDINGS = ["Finding A", "Finding B", "Finding C", "Finding D", "Finding E", "Finding F"];
 
 const findingImages: Record<string, string> = {
   cardiomegaly: cardiomegalyImg,
@@ -17,6 +18,7 @@ const findingImages: Record<string, string> = {
   consolidation: consolidationImg,
   atelectasis: atelectasisImg,
   pleural_effusion: pleuralEffusionImg,
+  pneumothorax: pneumothoraxImg,
 };
 
 const findingDetail: Record<string, { en: string; de: string }> = {
@@ -39,6 +41,10 @@ const findingDetail: Record<string, { en: string; de: string }> = {
   pleural_effusion: {
     en: "Fluid between the visceral and parietal pleura. Appears as blunting of costophrenic angles (small effusion) or a meniscus sign with white-out of the lower hemithorax (large effusion).",
     de: "Flüssigkeit zwischen viszeraler und parietaler Pleura. Zeigt sich als Verschattung der kostodiaphragmalen Winkel (kleiner Erguss) oder als Meniskuszeichen mit Verschattung des unteren Hemithorax (großer Erguss).",
+  },
+  pneumothorax: {
+    en: "Air between the lung and chest wall. Look for a thin visceral pleural line with absent lung markings beyond it, usually best seen at the apex. Can range from a subtle apical sliver to complete lung collapse.",
+    de: "Luft zwischen Lunge und Brustwand. Achten Sie auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen.",
   },
 };
 
@@ -89,11 +95,11 @@ const InterfaceTutorialScreen = () => {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground leading-relaxed">
             {language === "en"
-              ? "For this study, we focus on these 5 findings. Tap any finding to see more detail and an example image."
-              : "In dieser Studie konzentrieren wir uns auf diese 5 Befunde. Tippen Sie auf einen Befund für mehr Details und ein Beispielbild."}
+              ? "For this study, we focus on these 6 findings. Tap any finding to see more detail and an example image."
+              : "In dieser Studie konzentrieren wir uns auf diese 6 Befunde. Tippen Sie auf einen Befund für mehr Details und ein Beispielbild."}
           </p>
           <div className="space-y-2">
-            {["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"].map(id => (
+            {["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"].map(id => (
               <button
                 key={id}
                 onClick={() => setExpandedFinding(expandedFinding === id ? null : id)}

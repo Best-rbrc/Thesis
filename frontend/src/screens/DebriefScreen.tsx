@@ -4,11 +4,11 @@ import { useStudy } from "@/context/useStudy";
 import { studyDataService } from "@/services/studyDataService";
 import SystemHeader from "@/components/SystemHeader";
 
-const JIAN_POST_ITEMS = ["jian.post.1", "jian.post.2", "jian.post.3", "jian.post.4", "jian.post.5", "jian.post.6"];
+const JIAN_POST_ITEMS = ["jian.post.1", "jian.post.2", "jian.post.3", "jian.post.4", "jian.post.5", "jian.post.6", "jian.post.7", "jian.post.8", "jian.post.9"];
 
 const DebriefScreen = () => {
   const { screen, setScreen, setDebriefData, sessionCode, language, t, jianItemOrder } = useStudy();
-  const [trustItems, setTrustItems] = useState<number[]>(new Array(6).fill(4));
+  const [trustItems, setTrustItems] = useState<number[]>(new Array(9).fill(4));
   const [comments, setComments] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

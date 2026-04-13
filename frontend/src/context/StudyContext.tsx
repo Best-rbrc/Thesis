@@ -26,7 +26,20 @@ const translations: Record<string, Record<Language, string>> = {
   "welcome.time": { en: "How much time do you have?", de: "Wie viel Zeit haben Sie?" },
   "welcome.background": { en: "Your Background", de: "Ihr Hintergrund" },
   "welcome.experience": { en: "Medical experience", de: "Medizinische Erfahrung" },
-  "welcome.semester": { en: "Current semester / years of experience", de: "Aktuelles Semester / Berufserfahrung" },
+  "welcome.ageRange": { en: "Age range", de: "Altersgruppe" },
+  "age.under25": { en: "Under 25", de: "Unter 25" },
+  "age.25-34": { en: "25–34", de: "25–34" },
+  "age.35-44": { en: "35–44", de: "35–44" },
+  "age.45-54": { en: "45–54", de: "45–54" },
+  "age.55plus": { en: "55 or older", de: "55 oder älter" },
+  "age.preferNot": { en: "Prefer not to say", de: "Keine Angabe" },
+  "welcome.sex": { en: "Sex", de: "Geschlecht" },
+  "sex.male": { en: "Male", de: "Männlich" },
+  "sex.female": { en: "Female", de: "Weiblich" },
+  "sex.other": { en: "Other / Non-binary", de: "Divers / Nicht-binär" },
+  "sex.preferNot": { en: "Prefer not to say", de: "Keine Angabe" },
+  "welcome.semester": { en: "Current semester", de: "Aktuelles Semester" },
+  "welcome.yearsExp": { en: "Years of experience", de: "Berufserfahrung" },
   "welcome.xrayExp": { en: "Experience with chest X-rays", de: "Erfahrung mit Röntgen-Thorax-Bildern" },
   "welcome.aiGeneral": { en: "General AI tool usage", de: "Allgemeine KI-Tool-Nutzung" },
   "welcome.aiMedicine": { en: "AI tool usage in medicine", de: "KI-Tool-Nutzung in der Medizin" },
@@ -39,15 +52,16 @@ const translations: Record<string, Record<Language, string>> = {
   "exp.resident": { en: "Resident/Attending", de: "Assistenzarzt/Facharzt" },
   "exp.other": { en: "Other healthcare", de: "Anderer Gesundheitsberuf" },
   // Country
-  "welcome.country": { en: "Country of study", de: "Studienland" },
+  "welcome.country": { en: "Country", de: "Land" },
   "country.austria": { en: "Austria", de: "Österreich" },
   "country.germany": { en: "Germany", de: "Deutschland" },
   "country.switzerland": { en: "Switzerland", de: "Schweiz" },
-  "country.other": { en: "Other", de: "Anderes" },
-  // Semester – Austria
-  "sem.at.preclinical": { en: "Semester 1–6", de: "1.–6. Semester" },
-  "sem.at.clinical": { en: "Semester 7–12", de: "7.–12. Semester" },
-  "sem.at.kpj": { en: "Clinical practical year (KPJ)", de: "Klinisch-Praktisches Jahr (KPJ)" },
+  "country.other": { en: "Other country…", de: "Anderes Land…" },
+  // Semester – Austria (Diplomstudium Humanmedizin, 3 Abschnitte)
+  "sem.at.1abschnitt": { en: "1st section (Sem. 1–2)", de: "1. Abschnitt (1.–2. Semester)" },
+  "sem.at.2abschnitt.early": { en: "2nd section, early (Sem. 3–5)", de: "2. Abschnitt, früh (3.–5. Semester)" },
+  "sem.at.2abschnitt.late": { en: "2nd section, late (Sem. 6–8)", de: "2. Abschnitt, spät (6.–8. Semester)" },
+  "sem.at.3abschnitt": { en: "3rd section / KPJ (Sem. 9–12)", de: "3. Abschnitt / KPJ (9.–12. Semester)" },
   // Semester – Germany
   "sem.de.preclinical": { en: "Preclinical (Sem. 1–4)", de: "Vorklinik (1.–4. Sem.)" },
   "sem.de.clinical": { en: "Clinical (Sem. 5–10)", de: "Klinik (5.–10. Sem.)" },
@@ -86,11 +100,13 @@ const translations: Record<string, Record<Language, string>> = {
   "xray.moderate": { en: "Moderate (20–100)", de: "Mittel (20–100)" },
   "xray.experienced": { en: "Experienced (100+)", de: "Erfahren (100+)" },
   // X-ray volume
-  "welcome.xrayVolume": { en: "Chest X-rays reviewed per week (approx.)", de: "Röntgen-Thorax-Bilder pro Woche (ca.)" },
+  "welcome.xrayVolume": { en: "Chest X-rays reviewed per month (approx.)", de: "Röntgen-Thorax-Bilder pro Monat (ca.)" },
   "xrayVol.0": { en: "0", de: "0" },
   "xrayVol.1-5": { en: "1–5", de: "1–5" },
   "xrayVol.6-20": { en: "6–20", de: "6–20" },
-  "xrayVol.20+": { en: "20+", de: "20+" },
+  "xrayVol.21-50": { en: "21–50", de: "21–50" },
+  "xrayVol.51-200": { en: "51–200", de: "51–200" },
+  "xrayVol.200+": { en: "200+", de: "200+" },
   // AI usage general
   "ai.never": { en: "Never", de: "Nie" },
   "ai.rarely": { en: "Rarely", de: "Selten" },
@@ -146,19 +162,27 @@ const translations: Record<string, Record<Language, string>> = {
   "presurvey.continue": { en: "Continue to Cases", de: "Weiter zu den Fällen" },
   "presurvey.scale.1": { en: "Strongly disagree", de: "Stimme gar nicht zu" },
   "presurvey.scale.7": { en: "Strongly agree", de: "Stimme voll zu" },
+  // Jian et al. (2000) trust/distrust scale — adapted for AI diagnostic tools
+  // Items 1–5: distrust (negatively worded); Items 6–9: trust (positively worded)
   "jian.1": { en: "AI diagnostic tools can be deceptive", de: "KI-Diagnosetools können irreführend sein" },
   "jian.2": { en: "AI diagnostic tools may behave in underhanded ways", de: "KI-Diagnosetools können sich auf hinterhältige Weise verhalten" },
   "jian.3": { en: "I am suspicious of the intent behind AI diagnostic tools", de: "Ich bin misstrauisch gegenüber der Absicht hinter KI-Diagnosetools" },
   "jian.4": { en: "I am wary of AI diagnostic tools", de: "Ich stehe KI-Diagnosetools skeptisch gegenüber" },
   "jian.5": { en: "AI diagnostic tools could lead to harmful outcomes", de: "KI-Diagnosetools könnten zu schädlichen Ergebnissen führen" },
   "jian.6": { en: "I am confident in AI diagnostic tools", de: "Ich vertraue KI-Diagnosetools" },
-  // Post-study Jian items (system-specific)
+  "jian.7": { en: "AI diagnostic tools are reliable", de: "KI-Diagnosetools sind zuverlässig" },
+  "jian.8": { en: "AI diagnostic tools are dependable", de: "KI-Diagnosetools sind verlässlich" },
+  "jian.9": { en: "AI diagnostic tools have integrity", de: "KI-Diagnosetools handeln integer" },
+  // Post-study Jian items (system-specific, same structure)
   "jian.post.1": { en: "The system I just used was deceptive", de: "Das System, das ich gerade benutzt habe, war irreführend" },
   "jian.post.2": { en: "The system behaved in an underhanded manner", de: "Das System hat sich hinterhältig verhalten" },
   "jian.post.3": { en: "I am suspicious of the system's intent", de: "Ich bin misstrauisch gegenüber den Absichten des Systems" },
   "jian.post.4": { en: "I am wary of the system", de: "Ich bin dem System gegenüber skeptisch" },
   "jian.post.5": { en: "The system's actions could lead to harmful outcomes", de: "Die Aktionen des Systems könnten zu schädlichen Ergebnissen führen" },
   "jian.post.6": { en: "I am confident in the system", de: "Ich vertraue dem System" },
+  "jian.post.7": { en: "The system is reliable", de: "Das System ist zuverlässig" },
+  "jian.post.8": { en: "The system is dependable", de: "Das System ist verlässlich" },
+  "jian.post.9": { en: "The system has integrity", de: "Das System handelt integer" },
   // Interface Tutorial (pre-baseline)
   "ifTutorial.breadcrumb": { en: "Study Preparation", de: "Studienvorbereitung" },
   "ifTutorial.step1.title": { en: "Selecting Findings", de: "Befunde auswählen" },
@@ -183,7 +207,7 @@ const translations: Record<string, Record<Language, string>> = {
   "tutorial.step1.diaphragm.desc": { en: "Dome-shaped borders at the base", de: "Kuppelförmige Begrenzung am unteren Rand" },
   "tutorial.step1.costo": { en: "Costophrenic Angles", de: "Kostodiaphragmalwinkel" },
   "tutorial.step1.costo.desc": { en: "Sharp angles where diaphragm meets chest wall", de: "Spitze Winkel, wo Zwerchfell auf Brustwand trifft" },
-  "tutorial.step2.title": { en: "The Five Findings", de: "Die fünf Befunde" },
+  "tutorial.step2.title": { en: "The Six Findings", de: "Die sechs Befunde" },
   "tutorial.step3.title": { en: "AI Predictions", de: "KI-Vorhersagen" },
   "tutorial.step3.intro": { en: "In some cases, you'll see the AI model's predictions displayed as confidence bars:", de: "In einigen Fällen werden die Vorhersagen des KI-Modells als Konfidenzbalken angezeigt:" },
   "tutorial.step3.hint": { en: "Higher values mean the AI is more confident that finding is present.", de: "Höhere Werte bedeuten, dass die KI sich sicherer ist, dass der Befund vorliegt." },
@@ -274,11 +298,55 @@ const translations: Record<string, Record<Language, string>> = {
   "finding.atelectasis.desc": { en: "Partial lung collapse", de: "Teilweiser Lungenkollaps" },
   "finding.pleural_effusion": { en: "Pleural Effusion", de: "Pleuraerguss" },
   "finding.pleural_effusion.desc": { en: "Fluid around the lungs", de: "Flüssigkeit um die Lunge" },
+  "finding.pneumothorax": { en: "Pneumothorax", de: "Pneumothorax" },
+  "finding.pneumothorax.desc": { en: "Air in the pleural space", de: "Luft im Pleuraspalt" },
+  "trial.clinicalContext": { en: "Clinical Context", de: "Klinischer Kontext" },
+
+  // Clinical context vignettes (case-specific)
+  "context.attention": { en: "81M, routine pre-operative cardiac evaluation", de: "81M, kardiologische Routineuntersuchung vor Operation" },
+  "context.baseline01": { en: "81M, progressive dyspnoea on exertion, known cardiac history", de: "81M, zunehmende Belastungsdyspnoe, bekannte Herzerkrankung" },
+  "context.baseline02": { en: "48M, acute shortness of breath, bilateral crackles", de: "48M, akute Atemnot, bilaterale Rasselgeräusche" },
+  "context.baseline03": { en: "81M, worsening breathlessness, dull right base on percussion", de: "81M, zunehmende Atemnot, gedämpfter Klopfschall rechts basal" },
+  "context.baseline04": { en: "20F, routine pre-employment chest X-ray, no symptoms", de: "20W, Routine-Röntgen-Thorax vor Arbeitsantritt, keine Symptome" },
+  "context.case01": { en: "81M, follow-up for known dilated cardiomyopathy", de: "81M, Verlaufskontrolle bei bekannter dilatativer Kardiomyopathie" },
+  "context.case02": { en: "48M, acute dyspnoea, bilateral crackles on auscultation", de: "48M, akute Dyspnoe, bilaterale Rasselgeräusche bei Auskultation" },
+  "context.case03": { en: "81M, right-sided pleuritic chest pain, reduced breath sounds at base", de: "81M, rechtsseitiger pleuritischer Brustschmerz, abgeschwächtes Atemgeräusch basal" },
+  "context.case04": { en: "72M, high fever and productive cough for 5 days, suspected pneumonia", de: "72M, hohes Fieber und produktiver Husten seit 5 Tagen, Pneumonieverdacht" },
+  "context.case05": { en: "67M, acute decompensated heart failure, worsening orthopnoea", de: "67M, akut dekompensierte Herzinsuffizienz, zunehmende Orthopnoe" },
+  "context.case06": { en: "67M, high fever, rigors, productive cough for 4 days", de: "67M, hohes Fieber, Schüttelfrost, produktiver Husten seit 4 Tagen" },
+  "context.case07": { en: "78F, progressive dyspnoea, known congestive heart failure, bilateral leg oedema", de: "78W, zunehmende Dyspnoe, bekannte Herzinsuffizienz, bilaterale Beinödeme" },
+  "context.case08": { en: "78F, post-operative day 3, fever and oxygen desaturation", de: "78W, 3. postoperativer Tag, Fieber und Sauerstoffabfall" },
+  "context.case09": { en: "68F, worsening leg oedema, known valvular heart disease", de: "68W, zunehmende Beinödeme, bekannter Herzklappenfehler" },
+  "context.case10": { en: "68F, acute respiratory distress, suspected aspiration event", de: "68W, akute Atemnot, Aspirationsverdacht" },
+  "context.case11": { en: "72M, worsening cough, haemoptysis, weight loss over 3 months", de: "72M, zunehmender Husten, Hämoptyse, Gewichtsverlust über 3 Monate" },
+  "context.case12": { en: "81M, increasing breathlessness over 2 weeks, known malignancy", de: "81M, zunehmende Atemnot seit 2 Wochen, bekannte Tumorerkrankung" },
+  "context.case13": { en: "61M, high fever, worsening cough, suspected hospital-acquired pneumonia", de: "61M, hohes Fieber, zunehmender Husten, Verdacht auf nosokomiale Pneumonie" },
+  "context.case14": { en: "61M, acute decompensated heart failure, transferred from cardiology ward", de: "61M, akut dekompensierte Herzinsuffizienz, Verlegung von kardiologischer Station" },
+  "context.case15": { en: "44F, acute heart failure exacerbation, worsening dyspnoea over 2 days", de: "44W, akute Herzinsuffizienz-Exazerbation, zunehmende Dyspnoe seit 2 Tagen" },
+  "context.case16": { en: "44F, post-operative day 1 after abdominal surgery, reduced breath sounds on left", de: "44W, 1. postoperativer Tag nach Bauch-OP, abgeschwächtes Atemgeräusch links" },
+  "context.case17": { en: "35F, acute respiratory distress, bilateral crackles, SpO2 88%", de: "35W, akute Atemnot, bilaterale Rasselgeräusche, SpO2 88%" },
+  "context.case18": { en: "35F, routine cardiac follow-up for peripartum cardiomyopathy", de: "35W, kardiologische Verlaufskontrolle bei peripartaler Kardiomyopathie" },
+  "context.case19": { en: "57M, acute pulmonary oedema, transferred from ICU", de: "57M, akutes Lungenödem, Verlegung von Intensivstation" },
+  "context.case20": { en: "57M, post-intubation check, reduced breath sounds bilaterally", de: "57M, Kontrolle nach Intubation, abgeschwächtes Atemgeräusch beidseits" },
+  "context.case21": { en: "68F, routine pre-operative assessment, no respiratory symptoms", de: "68W, präoperative Routineuntersuchung, keine Atemwegssymptome" },
+  "context.case22": { en: "68F, chest pain evaluation, ECG unremarkable", de: "68W, Abklärung Brustschmerz, EKG unauffällig" },
+  "context.case23": { en: "20F, persistent dry cough for 2 weeks, no fever", de: "20W, anhaltender trockener Husten seit 2 Wochen, kein Fieber" },
+  "context.case24": { en: "20F, screening chest X-ray for international travel clearance", de: "20W, Röntgen-Thorax-Screening für Reisefreigabe" },
+  // New cases for FIXED_15 / FIXED_20
+  "context.fx13": { en: "79F, known chronic heart failure, routine outpatient follow-up", de: "79W, bekannte chronische Herzinsuffizienz, ambulante Routinekontrolle" },
+  "context.fx14": { en: "71M, productive cough and fever, suspected community-acquired pneumonia", de: "71M, produktiver Husten und Fieber, Verdacht auf ambulant erworbene Pneumonie" },
+  "context.fx15": { en: "35F, sudden onset dyspnoea, post-partum day 5", de: "35W, plötzliche Dyspnoe, 5. Tag post partum" },
+  "context.fx16": { en: "25M, dilated cardiomyopathy follow-up, worsening exercise intolerance", de: "25M, dilatative Kardiomyopathie, Verlaufskontrolle, zunehmende Belastungseinschränkung" },
+  "context.fx17": { en: "53F, acute decompensation, known congestive heart failure", de: "53W, akute Dekompensation bei bekannter kongestiver Herzinsuffizienz" },
+  "context.fx18": { en: "57M, haemoptysis and night sweats, weight loss over 6 weeks", de: "57M, Hämoptyse und Nachtschweiß, Gewichtsverlust über 6 Wochen" },
+  "context.fx19": { en: "33M, chest pain after minor trauma, SpO2 94% on room air", de: "33M, Brustschmerz nach Bagatelltrauma, SpO2 94% bei Raumluft" },
+  "context.fx20": { en: "33M, pre-employment medical screening, no symptoms", de: "33M, Einstellungsuntersuchung, keine Beschwerden" },
+
   "finding.none": { en: "No finding present", de: "Keiner der Befunde liegt vor" },
 };
 
-const TIME_TO_CASES: Record<number, number> = { 10: 8, 20: 16, 30: 24 };
-const BONUS_CASE_COUNT = 4;
+const TIME_TO_CASES: Record<number, number> = { 10: 10, 20: 15, 30: 20 };
+const BONUS_CASE_COUNT = 5;
 const STORAGE_PREFIX = "chexstudy_";
 
 function makeCode(): string {
@@ -304,7 +372,7 @@ function seededShuffle<T>(arr: T[], seed: string): T[] {
 }
 
 function generateJianOrder(sessionCode: string): number[] {
-  const indices = [0, 1, 2, 3, 4, 5];
+  const indices = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   return seededShuffle(indices, sessionCode);
 }
 
@@ -353,8 +421,8 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     activeCases: [],
     bonusCases: [],
     casesPerBlock: 2,
-    sessionIndex: Date.now() % 4,
-    jianItemOrder: [0, 1, 2, 3, 4, 5],
+    sessionIndex: Date.now() % 5,
+    jianItemOrder: [0, 1, 2, 3, 4, 5, 6, 7, 8],
   });
 
   const currentCase = state.currentCaseIndex < state.activeCases.length ? state.activeCases[state.currentCaseIndex] : null;
@@ -409,7 +477,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
         const dbTrials = await studyDataService.loadTrials(dbSession.id);
         
         const nCases = dbSession.n_cases || 8;
-        const sessionIdx = dbSession.session_index ?? (Date.now() % 4);
+        const sessionIdx = dbSession.session_index ?? (Date.now() % 5);
         const cases = generateCaseOrder(sessionIdx, nCases);
         const casesWithAttention = insertAttentionCheck(cases);
         const cpb = Math.floor(nCases / TOTAL_BLOCKS);
@@ -533,7 +601,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
   }, [state.sessionIndex]);
 
   const initializeBonusCases = useCallback(() => {
-    const bonus = generateCaseOrder((state.sessionIndex + 1) % 4, BONUS_CASE_COUNT);
+    const bonus = generateCaseOrder((state.sessionIndex + 1) % 5, BONUS_CASE_COUNT);
     setState(s => ({ ...s, bonusCases: bonus }));
   }, [state.sessionIndex]);
 

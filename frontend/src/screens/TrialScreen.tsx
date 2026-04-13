@@ -7,8 +7,12 @@ import StudyCheckbox from "@/components/StudyCheckbox";
 import SystemHeader from "@/components/SystemHeader";
 import { Slider } from "@/components/ui/slider";
 
-type OverlayView = "original" | "gradcam" | "intgrad";
+type OverlayView = "original" | "gradcam";
 const NO_FINDING_ID = "__no_finding__";
+
+// Module-level set so it survives TrialScreen unmount/remount (e.g. block breaks).
+// Cleared on page reload, which is the correct behaviour for a fresh session.
+const seenConditionsGlobal = new Set<string>();
 
 const TrialScreen = () => {
   const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, progress, currentBlock, t } = useStudy();
@@ -28,7 +32,7 @@ const TrialScreen = () => {
   const phase2StartTime = useRef<number | null>(null);
   const bannerShowTime = useRef<number | null>(null);
   const [showConditionInfo, setShowConditionInfo] = useState(false);
-  const seenConditions = useRef<Set<string>>(new Set());
+  const seenConditions = useRef<Set<string>>(seenConditionsGlobal);
 
   const isControl = currentCase?.condition === "A";
   const showAIPredictions = currentCase?.condition === "B" || currentCase?.condition === "C" || currentCase?.condition === "D";
@@ -36,9 +40,11 @@ const TrialScreen = () => {
   const showExplanations = currentCase?.condition === "C" || currentCase?.condition === "D" || currentCase?.condition === "E";
   const showBias = currentCase?.condition === "D" && currentCase?.biasWarning;
 
-  // Show condition info modal only the first time each condition is encountered
+  // Show condition info modal only the first time each condition is encountered.
+  // Skip for attention-check cases — they have a hardcoded condition that may
+  // differ from the surrounding block.
   useEffect(() => {
-    if (currentCase && !seenConditions.current.has(currentCase.condition)) {
+    if (currentCase && !currentCase.isAttentionCheck && !seenConditions.current.has(currentCase.condition)) {
       seenConditions.current.add(currentCase.condition);
       setShowConditionInfo(true);
     }
@@ -161,7 +167,7 @@ const TrialScreen = () => {
           <div className="relative w-full max-w-lg aspect-square bg-black rounded overflow-hidden border border-border/50">
             <img src={currentCase.imageUrl} alt={`Case ${currentCase.id}`} className="w-full h-full object-contain" />
             {showOverlay && (() => {
-              const overlayUrl = currentCase.overlays?.[overlayView as "gradcam" | "intgrad"]?.[selectedOverlayFinding];
+              const overlayUrl = currentCase.overlays?.[overlayView as "gradcam"]?.[selectedOverlayFinding];
               return overlayUrl ? (
                 <img
                   src={overlayUrl}
@@ -181,7 +187,7 @@ const TrialScreen = () => {
             <div className="mt-3 space-y-2">
               {/* XAI method toggle */}
               <div className="flex gap-px bg-border rounded overflow-hidden">
-                {(["original", "gradcam", "intgrad"] as OverlayView[]).map(view => (
+                {(["original", "gradcam"] as OverlayView[]).map(view => (
                   <button
                     key={view}
                     onClick={() => setOverlayView(view)}
@@ -227,6 +233,12 @@ const TrialScreen = () => {
 
         {/* Panel */}
         <div className="lg:w-[400px] border-l border-border bg-card/30 p-4 sm:p-5 space-y-4 overflow-y-auto">
+          {currentCase.clinicalContext && (
+            <div className="rounded border border-primary/20 bg-primary/5 px-3 py-2">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">{t("trial.clinicalContext")}</p>
+              <p className="text-sm text-foreground leading-snug">{t(currentCase.clinicalContext!)}</p>
+            </div>
+          )}
           {phase === 1 ? (
             <>
               <div>

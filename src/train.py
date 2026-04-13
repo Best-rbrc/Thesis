@@ -184,8 +184,12 @@ def train(
 
     global_u_strat = cfg["data"].get("uncertainty_strategy", "u-zeros")
     per_label_strats = cfg["data"].get("per_label_strategies", {})
-    # Use masked loss whenever ANY label may carry -1 (u-mask strategy)
-    use_masked = (global_u_strat == "u-mask" or "u-mask" in per_label_strats.values())
+    # Use masked loss whenever ANY label may carry -1 (u-mask or nan-mask strategy)
+    use_masked = (
+        global_u_strat in ("u-mask", "nan-mask")
+        or "u-mask" in per_label_strats.values()
+        or "nan-mask" in per_label_strats.values()
+    )
     use_pos_weight = cfg["training"].get("pos_weight", False)
 
     pos_weight_tensor = None

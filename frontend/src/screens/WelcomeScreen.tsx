@@ -1,12 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, Clock, Zap, BookOpen, Copy, CheckCircle2, KeyRound } from "lucide-react";
 import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
 
+const ALL_COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Azerbaijan",
+  "Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi",
+  "Cabo Verde","Cambodia","Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo (DRC)","Congo (Republic)","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic",
+  "Denmark","Djibouti","Dominica","Dominican Republic",
+  "Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia",
+  "Fiji","Finland","France",
+  "Gabon","Gambia","Georgia","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana",
+  "Haiti","Honduras","Hungary",
+  "Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast",
+  "Jamaica","Japan","Jordan",
+  "Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan",
+  "Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg",
+  "Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar",
+  "Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway",
+  "Oman",
+  "Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal",
+  "Qatar",
+  "Romania","Russia","Rwanda",
+  "Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Syria",
+  "Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu",
+  "Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan",
+  "Vanuatu","Vatican City","Venezuela","Vietnam",
+  "Yemen",
+  "Zambia","Zimbabwe",
+];
+
 const TIME_OPTIONS = [
-  { mins: 10, cases: 8, icon: Zap, label: { en: "Quick", de: "Kurz" }, desc: { en: "8 cases · ~2 blocks", de: "8 Fälle · ~2 Blöcke" } },
-  { mins: 20, cases: 16, icon: BookOpen, label: { en: "Standard", de: "Standard" }, desc: { en: "16 cases · ~4 blocks", de: "16 Fälle · ~4 Blöcke" } },
-  { mins: 30, cases: 24, icon: Clock, label: { en: "Full", de: "Vollständig" }, desc: { en: "24 cases · ~4 blocks", de: "24 Fälle · ~4 Blöcke" } },
+  { mins: 10, cases: 10, icon: Zap, label: { en: "Quick", de: "Kurz" }, desc: { en: "10 cases · ~3 blocks", de: "10 Fälle · ~3 Blöcke" } },
+  { mins: 20, cases: 15, icon: BookOpen, label: { en: "Standard", de: "Standard" }, desc: { en: "15 cases · ~4 blocks", de: "15 Fälle · ~4 Blöcke" } },
+  { mins: 30, cases: 20, icon: Clock, label: { en: "Full", de: "Vollständig" }, desc: { en: "20 cases · ~4 blocks", de: "20 Fälle · ~4 Blöcke" } },
 ];
 
 const WelcomeScreen = () => {
@@ -23,7 +50,25 @@ const WelcomeScreen = () => {
 
   const [time, setTime] = useState<number | null>(20);
   const [experience, setExperience] = useState("");
+  const [ageRange, setAgeRange] = useState("");
+  const [sex, setSex] = useState("");
   const [country, setCountry] = useState("");
+  const [countryOther, setCountryOther] = useState("");
+
+  // Pre-select country from IP geolocation on first load
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then(r => r.json())
+      .then(data => {
+        const name: string = data.country_name ?? "";
+        if (name === "Austria") setCountry(t("country.austria"));
+        else if (name === "Germany") setCountry(t("country.germany"));
+        else if (name === "Switzerland") setCountry(t("country.switzerland"));
+        else if (name) { setCountry(t("country.other")); setCountryOther(name); }
+      })
+      .catch(() => { /* silently ignore if blocked */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [semester, setSemester] = useState("");
   const [specialty, setSpecialty] = useState<string[]>([]);
   const [xrayExp, setXrayExp] = useState("");
@@ -38,15 +83,20 @@ const WelcomeScreen = () => {
   const [consented, setConsented] = useState(false);
 
   const expOptions = [t("exp.none"), t("exp.student"), t("exp.resident"), t("exp.other")];
+  const ageOptions = [t("age.under25"), t("age.25-34"), t("age.35-44"), t("age.45-54"), t("age.55plus"), t("age.preferNot")];
+  const sexOptions = [t("sex.male"), t("sex.female"), t("sex.other"), t("sex.preferNot")];
   
   const countryOptions = [t("country.austria"), t("country.germany"), t("country.switzerland"), t("country.other")];
+  const isOtherCountry = country === t("country.other");
+  // Effective country value for semester logic: use the typed country name when "Other" is selected
+  const effectiveCountry = isOtherCountry ? t("country.other") : country;
 
   const semesterOptions = (() => {
     if (experience === t("exp.student")) {
-      if (country === t("country.austria")) return [t("sem.at.preclinical"), t("sem.at.clinical"), t("sem.at.kpj")];
-      if (country === t("country.germany")) return [t("sem.de.preclinical"), t("sem.de.clinical"), t("sem.de.pj")];
-      if (country === t("country.switzerland")) return [t("sem.ch.bachelor"), t("sem.ch.master")];
-      if (country === t("country.other")) return [t("sem.other.early"), t("sem.other.late")];
+      if (effectiveCountry === t("country.austria")) return [t("sem.at.1abschnitt"), t("sem.at.2abschnitt.early"), t("sem.at.2abschnitt.late"), t("sem.at.3abschnitt")];
+      if (effectiveCountry === t("country.germany")) return [t("sem.de.preclinical"), t("sem.de.clinical"), t("sem.de.pj")];
+      if (effectiveCountry === t("country.switzerland")) return [t("sem.ch.bachelor"), t("sem.ch.master")];
+      if (effectiveCountry === t("country.other")) return [t("sem.other.early"), t("sem.other.late")];
       return [];
     }
     if (experience === t("exp.resident")) return [t("sem.0-2y"), t("sem.3-5y"), t("sem.5y+")];
@@ -77,7 +127,7 @@ const WelcomeScreen = () => {
   };
 
   const xrayOptions = [t("xray.none"), t("xray.few"), t("xray.moderate"), t("xray.experienced")];
-  const xrayVolOptions = [t("xrayVol.0"), t("xrayVol.1-5"), t("xrayVol.6-20"), t("xrayVol.20+")];
+  const xrayVolOptions = [t("xrayVol.0"), t("xrayVol.1-5"), t("xrayVol.6-20"), t("xrayVol.21-50"), t("xrayVol.51-200"), t("xrayVol.200+")];
 
   const aiGeneralOptions = [t("ai.never"), t("ai.rarely"), t("ai.weekly"), t("ai.daily")];
   const aiMedOptions = [t("aiMed.never"), t("aiMed.tried"), t("aiMed.occasionally"), t("aiMed.regularly")];
@@ -113,8 +163,12 @@ const WelcomeScreen = () => {
     return semester;
   })();
   const effectiveXrayVolume = xrayExp === t("xray.none") ? t("xrayVol.0") : xrayVolume;
+  // The stored country value: use typed name if "Other" selected, otherwise the chip value
+  const effectiveCountryValue = isOtherCountry ? (countryOther || t("country.other")) : country;
 
-  const isComplete = time !== null && experience && effectiveSemester && xrayExp
+  const isComplete = time !== null && experience && ageRange && sex && country
+    && (!isOtherCountry || countryOther.trim().length > 0)
+    && effectiveSemester && xrayExp
     && (xrayExp === t("xray.none") || effectiveXrayVolume)
     && (showSpecialty ? specialty.length > 0 : true)
     && aiGeneral && aiMedicine && aiCurrentUse.length > 0
@@ -125,6 +179,9 @@ const WelcomeScreen = () => {
     setUserProfile({
       timeAvailable: time!,
       experienceLevel: experience,
+      ageRange,
+      sex,
+      country: effectiveCountryValue,
       semester: effectiveSemester,
       specialty: effectiveSpecialty,
       xrayExperience: xrayExp,
@@ -221,12 +278,31 @@ const WelcomeScreen = () => {
           {/* Medical Background */}
           <Field title={t("welcome.background")}>
             <div className="space-y-4">
-              <OptionRow label={t("welcome.experience")} value={experience} options={expOptions} onChange={v => { setExperience(v); setCountry(""); setSemester(""); setSpecialty([]); }} />
-              {experience === t("exp.student") && (
-                <OptionRow label={t("welcome.country")} value={country} options={countryOptions} onChange={v => { setCountry(v); setSemester(""); }} />
+              <OptionRow label={t("welcome.experience")} value={experience} options={expOptions} onChange={v => { setExperience(v); setCountry(""); setCountryOther(""); setSemester(""); setSpecialty([]); }} />
+              <OptionRow label={t("welcome.ageRange")} value={ageRange} options={ageOptions} onChange={setAgeRange} />
+              <OptionRow label={t("welcome.sex")} value={sex} options={sexOptions} onChange={setSex} />
+              {experience && (
+                <div className="space-y-2">
+                  <OptionRow label={t("welcome.country")} value={country} options={countryOptions} onChange={v => { setCountry(v); setCountryOther(""); setSemester(""); }} />
+                  {isOtherCountry && (
+                    <select
+                      value={countryOther}
+                      onChange={e => setCountryOther(e.target.value)}
+                      className="w-full h-9 rounded bg-secondary text-sm text-secondary-foreground px-3 border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="">{language === "en" ? "Select country…" : "Land auswählen…"}</option>
+                      {ALL_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </div>
               )}
-              {experience && experience !== t("exp.none") && experience !== t("exp.other") && (experience !== t("exp.student") || country) && semesterOptions.length > 0 && (
-                <OptionRow label={t("welcome.semester")} value={semester} options={semesterOptions} onChange={setSemester} />
+              {experience && experience !== t("exp.none") && experience !== t("exp.other") && country && (!isOtherCountry || countryOther) && semesterOptions.length > 0 && (
+                <OptionRow
+                  label={experience === t("exp.resident") ? t("welcome.yearsExp") : t("welcome.semester")}
+                  value={semester}
+                  options={semesterOptions}
+                  onChange={setSemester}
+                />
               )}
               {showSpecialty && (
                 <div className="space-y-2">
