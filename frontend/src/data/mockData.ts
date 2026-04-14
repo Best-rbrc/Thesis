@@ -584,7 +584,7 @@ export const CASE_POOL: CaseData[] = [
 // ---------------------------------------------------------------------------
 // Latin-square condition orderings (5 conditions × 5 rows)
 // ---------------------------------------------------------------------------
-const LATIN_SQUARES: StudyCondition[][] = [
+export const LATIN_SQUARES: StudyCondition[][] = [
   ["A", "B", "C", "D", "E"],
   ["B", "C", "D", "E", "A"],
   ["C", "D", "E", "A", "B"],

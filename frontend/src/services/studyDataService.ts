@@ -15,11 +15,12 @@ export const studyDataService = {
     });
   },
 
-  async updateSessionProfile(sessionCode: string, profile: UserProfile, nCases: number) {
+  async updateSessionProfile(sessionCode: string, profile: UserProfile, nCases: number, language?: string) {
     withRetry("updateSessionProfile", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({
+          language: language ?? "en",
           experience_level: profile.experienceLevel,
           age_range: profile.ageRange,
           sex: profile.sex,
@@ -107,6 +108,7 @@ export const studyDataService = {
         .insert({
           session_id: session.id,
           block_number: survey.block,
+          condition: survey.condition,
           nasa_mental: survey.nasaMental,
           nasa_time: survey.nasaTime,
           nasa_frustration: survey.nasaFrustration,

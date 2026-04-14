@@ -44,6 +44,8 @@ const BonusRoundScreen = () => {
       caseId: currentCase.id,
       condition: currentCase.condition,
       category: currentCase.category,
+      groundTruth: currentCase.groundTruth,
+      aiPredictions: currentCase.aiPredictions,
       initialFindings: normalizedFindings,
       initialConfidence: confidence,
       responseTimePreMs: Date.now() - startTime.current,

@@ -47,6 +47,7 @@ export interface CaseResponse {
 
 export interface BlockSurvey {
   block: number;
+  condition: string;
   nasaMental: number;
   nasaTime: number;
   nasaFrustration: number;

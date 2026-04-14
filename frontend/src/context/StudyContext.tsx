@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from "react";
-import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, generateCaseOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
+import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, LATIN_SQUARES, generateCaseOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
 import { studyDataService } from "@/services/studyDataService";
 import { toast } from "sonner";
 import { StudyContext } from "./study-context";
@@ -464,6 +464,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     const jianOrder = generateJianOrder(code);
     setState(s => ({ ...s, sessionCode: code, jianItemOrder: jianOrder }));
     studyDataService.createSession(code, state.sessionIndex);
+    studyDataService.saveJianItemOrder(code, jianOrder);
     return code;
   }, [state.sessionIndex]);
 
@@ -584,7 +585,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     setState(s => {
       if (s.sessionCode) {
         const nCases = TIME_TO_CASES[userProfile.timeAvailable] || 8;
-        studyDataService.updateSessionProfile(s.sessionCode, userProfile, nCases);
+        studyDataService.updateSessionProfile(s.sessionCode, userProfile, nCases, s.language);
       }
       return { ...s, userProfile };
     });
@@ -636,8 +637,13 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
   const addBlockSurvey = useCallback((survey: BlockSurvey) => {
     setState(s => {
-      if (s.sessionCode) studyDataService.saveBlockSurvey(s.sessionCode, survey);
-      return { ...s, blockSurveys: [...s.blockSurveys, survey] };
+      // Derive condition from the Latin square: currentBlock is already the NEXT block,
+      // so the block just completed is currentBlock - 1 (1-indexed), i.e. index currentBlock - 2.
+      const blockIdx = s.currentBlock - 2;
+      const condition = LATIN_SQUARES[s.sessionIndex % 5]?.[blockIdx] ?? "";
+      const surveyWithCondition = { ...survey, condition };
+      if (s.sessionCode) studyDataService.saveBlockSurvey(s.sessionCode, surveyWithCondition);
+      return { ...s, blockSurveys: [...s.blockSurveys, surveyWithCondition] };
     });
   }, []);
 
