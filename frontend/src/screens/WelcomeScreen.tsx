@@ -31,9 +31,9 @@ const ALL_COUNTRIES = [
 ];
 
 const TIME_OPTIONS = [
-  { mins: 10, cases: 10, icon: Zap, label: { en: "Quick", de: "Kurz" }, desc: { en: "10 cases · ~3 blocks", de: "10 Fälle · ~3 Blöcke" } },
-  { mins: 20, cases: 15, icon: BookOpen, label: { en: "Standard", de: "Standard" }, desc: { en: "15 cases · ~4 blocks", de: "15 Fälle · ~4 Blöcke" } },
-  { mins: 30, cases: 20, icon: Clock, label: { en: "Full", de: "Vollständig" }, desc: { en: "20 cases · ~4 blocks", de: "20 Fälle · ~4 Blöcke" } },
+  { mins: 20, cases: 10, icon: Zap,      label: { en: "Quick",    de: "Kurz"          }, desc: { en: "10 cases · 5 blocks", de: "10 Fälle · 5 Blöcke" } },
+  { mins: 30, cases: 15, icon: BookOpen, label: { en: "Standard", de: "Standard"       }, desc: { en: "15 cases · 5 blocks", de: "15 Fälle · 5 Blöcke" } },
+  { mins: 40, cases: 20, icon: Clock,    label: { en: "Full",     de: "Vollständig"    }, desc: { en: "20 cases · 5 blocks", de: "20 Fälle · 5 Blöcke" } },
 ];
 
 const WelcomeScreen = () => {

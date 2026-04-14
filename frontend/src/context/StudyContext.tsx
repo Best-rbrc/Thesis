@@ -219,15 +219,15 @@ const translations: Record<string, Record<Language, string>> = {
   "tutorial.step4.bias.desc": { en: "Amber banners may inform you about potential AI limitations for a specific case.", de: "Gelbe Banner können Sie über mögliche KI-Einschränkungen für einen bestimmten Fall informieren." },
   // Condition info modals
   "conditionInfo.A.title": { en: "No AI Assistance", de: "Ohne KI-Unterstützung" },
-  "conditionInfo.A.desc": { en: "In the following cases, you will assess chest X-rays entirely on your own. No AI predictions or visual aids will be shown.", de: "In den folgenden Fällen beurteilen Sie Röntgen-Thorax-Bilder vollständig eigenständig. Es werden keine KI-Vorhersagen oder visuelle Hilfen angezeigt." },
+  "conditionInfo.A.desc": { en: "In the following cases, you will assess chest X-rays entirely on your own. No AI predictions or visual aids will be shown. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen beurteilen Sie Röntgen-Thorax-Bilder vollständig eigenständig. Es werden keine KI-Vorhersagen oder visuelle Hilfen angezeigt. Jeder Fall enthält einen kurzen klinischen Kontext, der Ihnen hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.B.title": { en: "AI Predictions", de: "KI-Vorhersagen" },
-  "conditionInfo.B.desc": { en: "In the following cases, after locking in your initial assessment, you will see the AI model's predictions with confidence scores. You may then revise your answer.", de: "In den folgenden Fällen sehen Sie nach Ihrer ersten Beurteilung die KI-Vorhersagen mit Konfidenzwerten. Sie können Ihre Antwort dann überarbeiten." },
+  "conditionInfo.B.desc": { en: "In the following cases, after locking in your initial assessment, you will see the AI model's predictions with confidence scores. You may then revise your answer. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen sehen Sie nach Ihrer ersten Beurteilung die KI-Vorhersagen mit Konfidenzwerten. Sie können Ihre Antwort dann überarbeiten. Jeder Fall enthält einen kurzen klinischen Kontext, der Ihnen hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.C.title": { en: "AI Predictions + Heatmaps", de: "KI-Vorhersagen + Heatmaps" },
-  "conditionInfo.C.desc": { en: "In the following cases, you will see AI predictions plus visual explanations (Grad-CAM / Integrated Gradients heatmaps) showing where the model focuses. You may switch between overlay views.", de: "In den folgenden Fällen sehen Sie KI-Vorhersagen sowie visuelle Erklärungen (Grad-CAM / Integrated-Gradients-Heatmaps), die zeigen, worauf das Modell achtet. Sie können zwischen Overlay-Ansichten wechseln." },
+  "conditionInfo.C.desc": { en: "In the following cases, you will see AI predictions plus visual heatmaps (Grad-CAM) showing where the model focuses. You may switch between overlay views. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen sehen Sie KI-Vorhersagen sowie visuelle Heatmaps (Grad-CAM), die zeigen, worauf das Modell achtet. Sie können zwischen Overlay-Ansichten wechseln. Jeder Fall enthält einen kurzen klinischen Kontext, der Ihnen hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.D.title": { en: "AI + Heatmaps + Bias Warnings", de: "KI + Heatmaps + Verzerrungswarnungen" },
-  "conditionInfo.D.desc": { en: "In the following cases, you will see AI predictions, heatmaps, and (where applicable) a warning banner about potential AI limitations for the specific case.", de: "In den folgenden Fällen sehen Sie KI-Vorhersagen, Heatmaps und (falls zutreffend) eine Warnung zu möglichen KI-Einschränkungen für den jeweiligen Fall." },
+  "conditionInfo.D.desc": { en: "In the following cases, you will see AI predictions, heatmaps, and (where applicable) a warning banner about potential AI limitations for the specific case. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen sehen Sie KI-Vorhersagen, Heatmaps und (falls zutreffend) eine Warnung zu möglichen KI-Einschränkungen für den jeweiligen Fall. Jeder Fall enthält einen kurzen klinischen Kontext, der Ihnen hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.E.title": { en: "Heatmaps Only", de: "Nur Heatmaps" },
-  "conditionInfo.E.desc": { en: "In the following cases, you will see visual explanation heatmaps showing where the AI focuses, but no numeric predictions. You may then revise your answer.", de: "In den folgenden Fällen sehen Sie visuelle Heatmaps, die zeigen, worauf die KI achtet, jedoch keine numerischen Vorhersagen. Sie können Ihre Antwort dann überarbeiten." },
+  "conditionInfo.E.desc": { en: "In the following cases, you will see visual explanation heatmaps showing where the AI focuses, but no numeric predictions. You may then revise your answer. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen sehen Sie visuelle Heatmaps, die zeigen, worauf die KI achtet, jedoch keine numerischen Vorhersagen. Sie können Ihre Antwort dann überarbeiten. Jeder Fall enthält einen kurzen klinischen Kontext, der Ihnen hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.dismiss": { en: "Got it", de: "Verstanden" },
   // Trial
   "trial.case": { en: "Case", de: "Fall" },
@@ -345,7 +345,7 @@ const translations: Record<string, Record<Language, string>> = {
   "finding.none": { en: "No finding present", de: "Keiner der Befunde liegt vor" },
 };
 
-const TIME_TO_CASES: Record<number, number> = { 10: 10, 20: 15, 30: 20 };
+const TIME_TO_CASES: Record<number, number> = { 20: 10, 30: 15, 40: 20 };
 const BONUS_CASE_COUNT = 5;
 const STORAGE_PREFIX = "chexstudy_";
 
@@ -523,7 +523,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
           language: "en",
           sessionCode: upperCode,
           userProfile: dbSession.experience_level ? {
-            timeAvailable: dbSession.time_budget_min || 20,
+            timeAvailable: dbSession.time_budget_min || 30,
             experienceLevel: dbSession.experience_level || "",
             semester: dbSession.semester || "",
             specialty: [],
