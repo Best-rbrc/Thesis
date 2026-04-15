@@ -210,7 +210,7 @@ const translations: Record<string, Record<Language, string>> = {
   "tutorial.step2.title": { en: "The Six Findings", de: "Die sechs Befunde" },
   "tutorial.step3.title": { en: "AI Predictions", de: "KI-Vorhersagen" },
   "tutorial.step3.intro": { en: "In some cases, you'll see the AI model's predictions displayed as confidence bars:", de: "In einigen Fällen werden die Vorhersagen des KI-Modells als Balken mit Wahrscheinlichkeitswerten angezeigt:" },
-  "tutorial.step3.hint": { en: "Higher values mean the AI is more confident that finding is present.", de: "Höhere Werte bedeuten, dass die KI sich sicherer ist, dass der Befund vorliegt." },
+  "tutorial.step3.hint": { en: "Higher values mean the AI is more confident that finding is present.", de: "Je höher der Wert, desto wahrscheinlicher hält die KI das Vorliegen dieses Befunds." },
   "tutorial.step4.title": { en: "Heatmaps & Warnings", de: "Heatmaps & Warnungen" },
   "tutorial.step4.heatmap.title": { en: "Visual Explanations (Heatmaps)", de: "Visuelle Erklärungen (Heatmaps)" },
   "tutorial.step4.heatmap.desc": { en: "Colored overlays showing where the AI model focuses its attention; they show where it looks, not what it predicts. These are", de: "Farbige Überlagerungen, die zeigen, worauf das KI-Modell seine Aufmerksamkeit richtet; sie zeigen, wo es hinschaut, nicht was es vorhersagt. Diese sind" },
