@@ -81,6 +81,7 @@ const WelcomeScreen = () => {
   const [aiAttitude, setAiAttitude] = useState("");
   const [aiTraining, setAiTraining] = useState("");
   const [consented, setConsented] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
   const expOptions = [t("exp.none"), t("exp.student"), t("exp.resident"), t("exp.other")];
   const ageOptions = [t("age.under25"), t("age.25-34"), t("age.35-44"), t("age.45-54"), t("age.55plus"), t("age.preferNot")];
@@ -175,7 +176,14 @@ const WelcomeScreen = () => {
     && aiKnowledge && aiCdss && aiAttitude && aiTraining && consented;
 
   const handleBegin = () => {
-    if (!isComplete) return;
+    if (!isComplete) {
+      setShowErrors(true);
+      // Scroll to the first error
+      setTimeout(() => {
+        document.querySelector("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      return;
+    }
     setUserProfile({
       timeAvailable: time!,
       experienceLevel: experience,
@@ -278,17 +286,17 @@ const WelcomeScreen = () => {
           {/* Medical Background */}
           <Field title={t("welcome.background")}>
             <div className="space-y-4">
-              <OptionRow label={t("welcome.experience")} value={experience} options={expOptions} onChange={v => { setExperience(v); setCountry(""); setCountryOther(""); setSemester(""); setSpecialty([]); }} />
-              <OptionRow label={t("welcome.ageRange")} value={ageRange} options={ageOptions} onChange={setAgeRange} />
-              <OptionRow label={t("welcome.sex")} value={sex} options={sexOptions} onChange={setSex} />
+              <OptionRow label={t("welcome.experience")} value={experience} options={expOptions} onChange={v => { setExperience(v); setCountry(""); setCountryOther(""); setSemester(""); setSpecialty([]); }} error={showErrors && !experience} language={language} />
+              <OptionRow label={t("welcome.ageRange")} value={ageRange} options={ageOptions} onChange={setAgeRange} error={showErrors && !ageRange} language={language} />
+              <OptionRow label={t("welcome.sex")} value={sex} options={sexOptions} onChange={setSex} error={showErrors && !sex} language={language} />
               {experience && (
                 <div className="space-y-2">
-                  <OptionRow label={t("welcome.country")} value={country} options={countryOptions} onChange={v => { setCountry(v); setCountryOther(""); setSemester(""); }} />
+                  <OptionRow label={t("welcome.country")} value={country} options={countryOptions} onChange={v => { setCountry(v); setCountryOther(""); setSemester(""); }} error={showErrors && !country} language={language} />
                   {isOtherCountry && (
                     <select
                       value={countryOther}
                       onChange={e => setCountryOther(e.target.value)}
-                      className="w-full h-9 rounded bg-secondary text-sm text-secondary-foreground px-3 border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className={`w-full h-9 rounded bg-secondary text-sm text-secondary-foreground px-3 border focus:outline-none focus:ring-1 focus:ring-primary/50 ${showErrors && !countryOther ? "border-destructive" : "border-border"}`}
                     >
                       <option value="">{language === "en" ? "Select country…" : "Land auswählen…"}</option>
                       {ALL_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -302,24 +310,32 @@ const WelcomeScreen = () => {
                   value={semester}
                   options={semesterOptions}
                   onChange={setSemester}
+                  error={showErrors && !semester}
+                  language={language}
                 />
               )}
-              {showSpecialty && (
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("welcome.specialty")}</label>
-                  <div className="flex flex-wrap gap-2">
-                    {specialtyOptions.map(opt => (
-                      <Chip key={opt.key} selected={specialty.includes(opt.key)} onClick={() => toggleSpecialty(opt.key)}>
-                        {specialty.includes(opt.key) && <Check className="w-3 h-3" />}
-                        {opt.label}
-                      </Chip>
-                    ))}
+              {showSpecialty && (() => {
+                const specialtyError = showErrors && specialty.length === 0;
+                return (
+                  <div className="space-y-2" data-error={specialtyError ? "true" : undefined}>
+                    <label className={`text-xs font-medium uppercase tracking-wider ${specialtyError ? "text-destructive" : "text-muted-foreground"}`}>
+                      {t("welcome.specialty")}{specialtyError && " *"}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {specialtyOptions.map(opt => (
+                        <Chip key={opt.key} selected={specialty.includes(opt.key)} onClick={() => toggleSpecialty(opt.key)} error={specialtyError && !specialty.includes(opt.key)}>
+                          {specialty.includes(opt.key) && <Check className="w-3 h-3" />}
+                          {opt.label}
+                        </Chip>
+                      ))}
+                    </div>
+                    {specialtyError && <p className="text-xs text-destructive">{language === "de" ? "Bitte auswählen." : "Please select an option."}</p>}
                   </div>
-                </div>
-              )}
-              <OptionRow label={t("welcome.xrayExp")} value={xrayExp} options={xrayOptions} onChange={v => { setXrayExp(v); if (v === t("xray.none")) setXrayVolume(t("xrayVol.0")); else setXrayVolume(""); }} />
+                );
+              })()}
+              <OptionRow label={t("welcome.xrayExp")} value={xrayExp} options={xrayOptions} onChange={v => { setXrayExp(v); if (v === t("xray.none")) setXrayVolume(t("xrayVol.0")); else setXrayVolume(""); }} error={showErrors && !xrayExp} language={language} />
               {xrayExp && xrayExp !== t("xray.none") && (
-                <OptionRow label={t("welcome.xrayVolume")} value={xrayVolume} options={xrayVolOptions} onChange={setXrayVolume} />
+                <OptionRow label={t("welcome.xrayVolume")} value={xrayVolume} options={xrayVolOptions} onChange={setXrayVolume} error={showErrors && !xrayVolume} language={language} />
               )}
             </div>
           </Field>
@@ -327,43 +343,62 @@ const WelcomeScreen = () => {
           {/* AI Experience - expanded */}
           <Field title="AI Experience">
             <div className="space-y-4">
-              <OptionRow label={t("welcome.aiKnowledge")} value={aiKnowledge} options={aiKnowledgeOptions} onChange={setAiKnowledge} />
-              <OptionRow label={t("welcome.aiGeneral")} value={aiGeneral} options={aiGeneralOptions} onChange={setAiGeneral} />
-              <OptionRow label={t("welcome.aiMedicine")} value={aiMedicine} options={aiMedOptions} onChange={setAiMedicine} />
-              <OptionRow label={t("welcome.cdss")} value={aiCdss} options={aiCdssOptions} onChange={setAiCdss} />
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("welcome.aiCurrentUse")}</label>
-                <div className="flex flex-wrap gap-2">
-                  {aiUseOptions.map(opt => (
-                    <Chip key={opt.key} selected={aiCurrentUse.includes(opt.key)} onClick={() => toggleAiUse(opt.key)}>
-                      {aiCurrentUse.includes(opt.key) && <Check className="w-3 h-3" />}
-                      {opt.label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-              <OptionRow label={t("welcome.aiTraining")} value={aiTraining} options={aiTrainingOptions} onChange={setAiTraining} />
-              <OptionRow label={t("welcome.aiAttitude")} value={aiAttitude} options={aiAttitudeOptions} onChange={setAiAttitude} />
+              <OptionRow label={t("welcome.aiKnowledge")} value={aiKnowledge} options={aiKnowledgeOptions} onChange={setAiKnowledge} error={showErrors && !aiKnowledge} language={language} />
+              <OptionRow label={t("welcome.aiGeneral")} value={aiGeneral} options={aiGeneralOptions} onChange={setAiGeneral} error={showErrors && !aiGeneral} language={language} />
+              <OptionRow label={t("welcome.aiMedicine")} value={aiMedicine} options={aiMedOptions} onChange={setAiMedicine} error={showErrors && !aiMedicine} language={language} />
+              <OptionRow label={t("welcome.cdss")} value={aiCdss} options={aiCdssOptions} onChange={setAiCdss} error={showErrors && !aiCdss} language={language} />
+              {(() => {
+                const aiUseError = showErrors && aiCurrentUse.length === 0;
+                return (
+                  <div className="space-y-2" data-error={aiUseError ? "true" : undefined}>
+                    <label className={`text-xs font-medium uppercase tracking-wider ${aiUseError ? "text-destructive" : "text-muted-foreground"}`}>
+                      {t("welcome.aiCurrentUse")}{aiUseError && " *"}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {aiUseOptions.map(opt => (
+                        <Chip key={opt.key} selected={aiCurrentUse.includes(opt.key)} onClick={() => toggleAiUse(opt.key)} error={aiUseError && !aiCurrentUse.includes(opt.key)}>
+                          {aiCurrentUse.includes(opt.key) && <Check className="w-3 h-3" />}
+                          {opt.label}
+                        </Chip>
+                      ))}
+                    </div>
+                    {aiUseError && <p className="text-xs text-destructive">{language === "de" ? "Bitte auswählen." : "Please select an option."}</p>}
+                  </div>
+                );
+              })()}
+              <OptionRow label={t("welcome.aiTraining")} value={aiTraining} options={aiTrainingOptions} onChange={setAiTraining} error={showErrors && !aiTraining} language={language} />
+              <OptionRow label={t("welcome.aiAttitude")} value={aiAttitude} options={aiAttitudeOptions} onChange={setAiAttitude} error={showErrors && !aiAttitude} language={language} />
             </div>
           </Field>
 
           {/* Consent */}
-          <div className="border-t border-border pt-5">
+          <div
+            className={`border-t pt-5 ${showErrors && !consented ? "border-destructive" : "border-border"}`}
+            data-error={showErrors && !consented ? "true" : undefined}
+          >
             <label className="flex items-start gap-3 cursor-pointer group">
               <div className={`mt-0.5 w-5 h-5 rounded-sm flex items-center justify-center shrink-0 transition-all ${
-                consented ? "bg-primary" : "border border-muted-foreground/30 group-hover:border-muted-foreground/50"
+                consented
+                  ? "bg-primary"
+                  : showErrors
+                    ? "border border-destructive"
+                    : "border border-muted-foreground/30 group-hover:border-muted-foreground/50"
               }`}>
                 {consented && <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />}
               </div>
               <input type="checkbox" checked={consented} onChange={e => setConsented(e.target.checked)} className="sr-only" />
-              <span className="text-sm text-muted-foreground leading-relaxed">{t("welcome.consent")}</span>
+              <span className={`text-sm leading-relaxed ${showErrors && !consented ? "text-destructive" : "text-muted-foreground"}`}>
+                {t("welcome.consent")}
+              </span>
             </label>
+            {showErrors && !consented && (
+              <p className="text-xs text-destructive mt-1.5 pl-8">{language === "en" ? "Please accept to continue." : "Bitte akzeptieren, um fortzufahren."}</p>
+            )}
           </div>
 
           <button
             onClick={handleBegin}
-            disabled={!isComplete}
-            className="w-full h-10 rounded text-sm font-medium transition-all bg-primary text-primary-foreground hover:brightness-110 disabled:opacity-20 disabled:pointer-events-none"
+            className="w-full h-10 rounded text-sm font-medium transition-all bg-primary text-primary-foreground hover:brightness-110"
           >
             {t("welcome.begin")}
           </button>
@@ -380,24 +415,34 @@ const Field = ({ title, children }: { title: string; children: React.ReactNode }
   </div>
 );
 
-const OptionRow = ({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) => (
-  <div className="space-y-2">
-    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</label>
+const OptionRow = ({ label, value, options, onChange, error, language }: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void;
+  error?: boolean; language?: string;
+}) => (
+  <div className="space-y-2" data-error={error ? "true" : undefined}>
+    <label className={`text-xs font-medium uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>
+      {label}{error && " *"}
+    </label>
     <div className="flex flex-wrap gap-2">
       {options.map(opt => (
-        <Chip key={opt} selected={value === opt} onClick={() => onChange(opt)}>{opt}</Chip>
+        <Chip key={opt} selected={value === opt} onClick={() => onChange(opt)} error={error}>{opt}</Chip>
       ))}
     </div>
+    {error && (
+      <p className="text-xs text-destructive">{language === "de" ? "Bitte auswählen." : "Please select an option."}</p>
+    )}
   </div>
 );
 
-const Chip = ({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) => (
+const Chip = ({ selected, onClick, children, error }: { selected: boolean; onClick: () => void; children: React.ReactNode; error?: boolean }) => (
   <button
     onClick={onClick}
     className={`px-3 h-8 rounded text-xs font-medium transition-all flex items-center gap-1.5 ${
       selected
         ? "bg-primary text-primary-foreground"
-        : "bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground"
+        : error
+          ? "bg-secondary text-destructive border border-destructive/40 hover:bg-accent"
+          : "bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground"
     }`}
   >
     {children}
