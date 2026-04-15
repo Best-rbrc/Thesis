@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { ArrowRight, Clock, ShieldCheck, UserX, RotateCcw } from "lucide-react";
+import { ArrowRight, Clock, ShieldCheck, UserX, RotateCcw, KeyRound } from "lucide-react";
 import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
+
+// Change this to update the access code given to participants.
+// Case-insensitive — participants can type it in any case.
+const STUDY_ACCESS_CODE = "CHEX2025";
 
 const LandingScreen = () => {
   const { setScreen, generateSessionCode, resumeSession, language, t } = useStudy();
@@ -9,8 +13,14 @@ const LandingScreen = () => {
   const [resumeCode, setResumeCode] = useState("");
   const [resumeError, setResumeError] = useState(false);
   const [resumeLoading, setResumeLoading] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
+  const [accessError, setAccessError] = useState(false);
 
   const handleStart = () => {
+    if (accessCode.trim().toUpperCase() !== STUDY_ACCESS_CODE) {
+      setAccessError(true);
+      return;
+    }
     generateSessionCode();
     setScreen("consent");
   };
@@ -41,13 +51,39 @@ const LandingScreen = () => {
           </p>
 
           <div className="flex flex-col gap-3 mb-8">
-            <button
-              onClick={handleStart}
-              className="group inline-flex items-center justify-center gap-2 h-10 px-6 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all"
-            >
-              {t("landing.start")}
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
+            {/* Access code gate */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className={`flex flex-1 items-center gap-2 h-10 px-3 rounded border bg-secondary transition-shadow ${
+                  accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
+                }`}>
+                  <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    value={accessCode}
+                    onChange={e => { setAccessCode(e.target.value); setAccessError(false); }}
+                    onKeyDown={e => e.key === "Enter" && handleStart()}
+                    placeholder={language === "en" ? "Access code" : "Zugangscode"}
+                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    autoComplete="off"
+                  />
+                </div>
+                <button
+                  onClick={handleStart}
+                  className="group inline-flex items-center justify-center gap-2 h-10 px-5 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all shrink-0"
+                >
+                  {t("landing.start")}
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                </button>
+              </div>
+              {accessError && (
+                <p className="text-xs text-destructive pl-1">
+                  {language === "en"
+                    ? "Invalid access code. Please check and try again."
+                    : "Ungültiger Zugangscode. Bitte prüfen und erneut versuchen."}
+                </p>
+              )}
+            </div>
 
             {!showResume ? (
               <button
