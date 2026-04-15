@@ -109,7 +109,7 @@ const SystemHeader = ({ breadcrumb, rightContent, progress, phaseLabel, showFind
             <p className="text-sm text-muted-foreground leading-relaxed">
               {language === "en"
                 ? "Your progress is saved. You can resume anytime using your session code."
-                : "Ihr Fortschritt wurde gespeichert. Sie können jederzeit mit Ihrem Sitzungscode fortfahren."}
+                : "Dein Fortschritt wurde gespeichert. Du kannst jederzeit mit deinem Sitzungscode fortfahren."}
             </p>
             {sessionCode && (
               <button

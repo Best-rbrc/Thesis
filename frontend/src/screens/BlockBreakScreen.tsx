@@ -5,17 +5,27 @@ import SystemHeader from "@/components/SystemHeader";
 import { Slider } from "@/components/ui/slider";
 
 const BlockBreakScreen = () => {
-  const { currentBlock, setScreen, addBlockSurvey, t } = useStudy();
+  const { currentBlock, setScreen, addBlockSurvey, t, language } = useStudy();
   const blockJustCompleted = currentBlock - 1;
   const [nasaMental, setNasaMental] = useState(10);
   const [nasaTime, setNasaTime] = useState(10);
   const [nasaFrustration, setNasaFrustration] = useState(10);
-  const [trustPulse, setTrustPulse] = useState(4);
+  const [trustPulse, setTrustPulse] = useState<number | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
 
   const handleContinue = () => {
+    if (trustPulse === null) {
+      setShowErrors(true);
+      setTimeout(() => {
+        document.querySelector("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      return;
+    }
     addBlockSurvey({ block: blockJustCompleted, nasaMental, nasaTime, nasaFrustration, trustPulse });
     setScreen("trial");
   };
+
+  const trustError = showErrors && trustPulse === null;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -35,9 +45,11 @@ const BlockBreakScreen = () => {
             <NasaSlider label={t("break.timePressure")} value={nasaTime} onChange={setNasaTime} />
             <NasaSlider label={t("break.frustration")} value={nasaFrustration} onChange={setNasaFrustration} />
 
-            <div className="space-y-2 pt-3 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("break.trustPulse")}</p>
-              <div className="flex gap-px bg-border rounded overflow-hidden">
+            <div className="space-y-2 pt-3 border-t border-border" data-error={trustError ? "true" : undefined}>
+              <p className={`text-xs font-semibold uppercase tracking-wider ${trustError ? "text-destructive" : "text-muted-foreground"}`}>
+                {t("break.trustPulse")}
+              </p>
+              <div className={`flex gap-px rounded overflow-hidden ${trustError ? "ring-1 ring-destructive bg-destructive/5" : "bg-border"}`}>
                 {[1, 2, 3, 4, 5, 6, 7].map(val => (
                   <button
                     key={val}
@@ -54,6 +66,11 @@ const BlockBreakScreen = () => {
                 <span>{t("break.noTrust")}</span>
                 <span>{t("break.completeTrust")}</span>
               </div>
+              {trustError && (
+                <p className="text-xs text-destructive">
+                  {language === "en" ? "Please select a rating." : "Bitte eine Bewertung auswählen."}
+                </p>
+              )}
             </div>
           </div>
 

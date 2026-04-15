@@ -24,11 +24,11 @@ const findingImages: Record<string, string> = {
 const findingDetail: Record<string, { en: string; de: string }> = {
   cardiomegaly: {
     en: "The cardiac silhouette occupies more than 50% of the thoracic width on a PA view. Often associated with heart failure, pericardial effusion, or cardiomyopathy.",
-    de: "Die Herzsilhouette nimmt mehr als 50% der Thoraxbreite in der PA-Aufnahme ein. Häufig assoziiert mit Herzinsuffizienz, Perikarderguss oder Kardiomyopathie.",
+    de: "Die Herzsilhouette nimmt mehr als 50% der Thoraxbreite in der PA-Aufnahme ein. Steht häufig im Zusammenhang mit Herzinsuffizienz, Perikarderguss oder Kardiomyopathie.",
   },
   edema: {
     en: "Fluid accumulation in the lung tissue. Look for cephalization of vessels, peribronchial cuffing, Kerley B lines, and bilateral ground-glass opacities.",
-    de: "Flüssigkeitsansammlung im Lungengewebe. Achten Sie auf Gefäßumverteilung, peribronchiale Verdickung, Kerley-B-Linien und bilaterale Milchglastrübungen.",
+    de: "Flüssigkeitsansammlung im Lungengewebe. Achte auf Gefäßumverteilung, peribronchiale Verdickung, Kerley-B-Linien und bilaterale Milchglastrübungen.",
   },
   consolidation: {
     en: "Air spaces filled with fluid, pus, or cells appearing as dense white areas. May include air bronchograms. Common in pneumonia and acute respiratory distress.",
@@ -44,7 +44,7 @@ const findingDetail: Record<string, { en: string; de: string }> = {
   },
   pneumothorax: {
     en: "Air between the lung and chest wall. Look for a thin visceral pleural line with absent lung markings beyond it, usually best seen at the apex. Can range from a subtle apical sliver to complete lung collapse.",
-    de: "Luft zwischen Lunge und Brustwand. Achten Sie auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen.",
+    de: "Luft zwischen Lunge und Brustwand. Achte auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen.",
   },
 };
 
@@ -96,7 +96,7 @@ const InterfaceTutorialScreen = () => {
           <p className="text-sm text-muted-foreground leading-relaxed">
             {language === "en"
               ? "For this study, we focus on these 6 findings. Tap any finding to see more detail and an example image."
-              : "In dieser Studie konzentrieren wir uns auf diese 6 Befunde. Tippen Sie auf einen Befund für mehr Details und ein Beispielbild."}
+              : "In dieser Studie konzentrieren wir uns auf diese 6 Befunde. Tippe auf einen Befund für mehr Details und ein Beispielbild."}
           </p>
           <div className="space-y-2">
             {["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"].map(id => (
@@ -131,7 +131,7 @@ const InterfaceTutorialScreen = () => {
             <Brain className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" />
             {language === "en"
               ? "You can always review these findings during the study via the \"Findings\" button in the top bar."
-              : "Sie können diese Befunde jederzeit während der Studie über den \"Befunde\"-Button in der oberen Leiste einsehen."}
+              : "Du kannst diese Befunde jederzeit während der Studie über den \"Befunde\"-Button in der oberen Leiste einsehen."}
           </p>
         </div>
       ),
@@ -146,7 +146,7 @@ const InterfaceTutorialScreen = () => {
           </p>
           <div className="glass-panel p-4 space-y-2">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">
-              {language === "en" ? "Try it — tap any finding below" : "Ausprobieren – tippen Sie auf einen Befund"}
+              {language === "en" ? "Try it — tap any finding below" : "Ausprobieren – tippe auf einen Befund"}
             </p>
             {MOCK_FINDINGS.map(id => (
               <button

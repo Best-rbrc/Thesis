@@ -219,13 +219,13 @@ const WelcomeScreen = () => {
               <div className="flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-primary" />
                 <h3 className="text-sm font-semibold text-foreground">
-                  {language === "en" ? "Your Session Code" : "Ihr Sitzungscode"}
+                  {language === "en" ? "Your Session Code" : "Dein Sitzungscode"}
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {language === "en"
                   ? "Please write down this code. You can use it to resume your session if you need to take a break or if anything goes wrong."
-                  : "Bitte notieren Sie sich diesen Code. Sie können ihn verwenden, um Ihre Sitzung fortzusetzen, falls Sie eine Pause machen müssen oder etwas schiefgeht."}
+                  : "Bitte notiere dir diesen Code. Du kannst ihn verwenden, um deine Sitzung fortzusetzen, falls du eine Pause machen musst oder etwas schiefgeht."}
               </p>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-mono font-bold text-primary tracking-[0.2em]">{sessionCode}</span>
@@ -279,7 +279,7 @@ const WelcomeScreen = () => {
             <p className="text-xs text-muted-foreground/60 mt-2 text-center italic">
               {language === "en"
                 ? "This is an estimate; actual duration may vary depending on your pace."
-                : "Dies ist eine Schätzung; die tatsächliche Dauer kann je nach Ihrem Tempo variieren."}
+                : "Dies ist eine Schätzung; die tatsächliche Dauer kann je nach deinem Tempo variieren."}
             </p>
           </Field>
 
@@ -392,7 +392,7 @@ const WelcomeScreen = () => {
               </span>
             </label>
             {showErrors && !consented && (
-              <p className="text-xs text-destructive mt-1.5 pl-8">{language === "en" ? "Please accept to continue." : "Bitte akzeptieren, um fortzufahren."}</p>
+              <p className="text-xs text-destructive mt-1.5 pl-8">{language === "en" ? "Please accept to continue." : "Bitte akzeptiere, um fortzufahren."}</p>
             )}
           </div>
 

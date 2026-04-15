@@ -98,7 +98,7 @@ const LandingScreen = () => {
                 <p className="text-xs text-muted-foreground">
                   {language === "en"
                     ? "Enter your 6-character session code to continue where you left off."
-                    : "Geben Sie Ihren 6-stelligen Sitzungscode ein, um dort fortzufahren, wo Sie aufgehört haben."}
+                    : "Gib deinen 6-stelligen Sitzungscode ein, um dort fortzufahren, wo du aufgehört hast."}
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -127,7 +127,7 @@ const LandingScreen = () => {
                   <p className="text-xs text-destructive">
                     {language === "en"
                       ? "No session found. Please check your code and try again."
-                      : "Keine Sitzung gefunden. Bitte überprüfen Sie Ihren Code."}
+                      : "Keine Sitzung gefunden. Bitte überprüfe deinen Code."}
                   </p>
                 )}
               </div>

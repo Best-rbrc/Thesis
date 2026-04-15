@@ -25,10 +25,10 @@ const FINDINGS = [
 const labels: Record<string, { en: string; de: string }> = {
   "cardiomegaly": { en: "Cardiomegaly", de: "Kardiomegalie" },
   "cardiomegaly.desc": { en: "Enlarged heart silhouette", de: "Vergrößerte Herzsilhouette" },
-  "cardiomegaly.detail": { en: "The cardiac silhouette occupies more than 50% of the thoracic width on a PA view. Often associated with heart failure, pericardial effusion, or cardiomyopathy.", de: "Die Herzsilhouette nimmt mehr als 50% der Thoraxbreite in der PA-Aufnahme ein. Häufig assoziiert mit Herzinsuffizienz, Perikarderguss oder Kardiomyopathie." },
+  "cardiomegaly.detail": { en: "The cardiac silhouette occupies more than 50% of the thoracic width on a PA view. Often associated with heart failure, pericardial effusion, or cardiomyopathy.", de: "Die Herzsilhouette nimmt mehr als 50% der Thoraxbreite in der PA-Aufnahme ein. Steht häufig im Zusammenhang mit Herzinsuffizienz, Perikarderguss oder Kardiomyopathie." },
   "edema": { en: "Pulmonary Edema", de: "Lungenödem" },
   "edema.desc": { en: "Fluid in the lungs", de: "Flüssigkeit in der Lunge" },
-  "edema.detail": { en: "Fluid accumulation in the lung tissue. Look for cephalization of vessels, peribronchial cuffing, Kerley B lines, and bilateral ground-glass opacities.", de: "Flüssigkeitsansammlung im Lungengewebe. Achten Sie auf Gefäßumverteilung, peribronchiale Verdickung, Kerley-B-Linien und bilaterale Milchglastrübungen." },
+  "edema.detail": { en: "Fluid accumulation in the lung tissue. Look for cephalization of vessels, peribronchial cuffing, Kerley B lines, and bilateral ground-glass opacities.", de: "Flüssigkeitsansammlung im Lungengewebe. Achte auf Gefäßumverteilung, peribronchiale Verdickung, Kerley-B-Linien und bilaterale Milchglastrübungen." },
   "consolidation": { en: "Consolidation", de: "Konsolidierung" },
   "consolidation.desc": { en: "Dense opacity in lung tissue", de: "Dichte Verschattung im Lungengewebe" },
   "consolidation.detail": { en: "Air spaces filled with fluid, pus, or cells appearing as dense white areas. May include air bronchograms. Common in pneumonia and acute respiratory distress.", de: "Lufträume gefüllt mit Flüssigkeit, Eiter oder Zellen als dichte weiße Bereiche. Kann Luftbronchogramme enthalten. Häufig bei Pneumonie und akutem Atemnotsyndrom." },
@@ -40,7 +40,7 @@ const labels: Record<string, { en: string; de: string }> = {
   "pleural_effusion.detail": { en: "Fluid between the visceral and parietal pleura. Appears as blunting of costophrenic angles (small effusion) or a meniscus sign with white-out of the lower hemithorax (large effusion).", de: "Flüssigkeit zwischen viszeraler und parietaler Pleura. Zeigt sich als Verschattung der kostodiaphragmalen Winkel (kleiner Erguss) oder als Meniskuszeichen mit Verschattung des unteren Hemithorax (großer Erguss)." },
   "pneumothorax": { en: "Pneumothorax", de: "Pneumothorax" },
   "pneumothorax.desc": { en: "Air in the pleural space", de: "Luft im Pleuraspalt" },
-  "pneumothorax.detail": { en: "Air between the lung and chest wall. Look for a thin visceral pleural line with absent lung markings beyond it, usually best seen at the apex. Can range from a subtle apical sliver to complete lung collapse.", de: "Luft zwischen Lunge und Brustwand. Achten Sie auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen." },
+  "pneumothorax.detail": { en: "Air between the lung and chest wall. Look for a thin visceral pleural line with absent lung markings beyond it, usually best seen at the apex. Can range from a subtle apical sliver to complete lung collapse.", de: "Luft zwischen Lunge und Brustwand. Achte auf eine dünne viszerale Pleuralinie ohne Lungenzeichnung dahinter, meist apikal am besten sichtbar. Kann von einem dezenten apikalen Streifen bis zum kompletten Lungenkollaps reichen." },
   title: { en: "Findings Reference", de: "Befund-Referenz" },
   placeholder: { en: "Example X-ray will be shown here", de: "Beispiel-Röntgenbild wird hier angezeigt" },
 };
