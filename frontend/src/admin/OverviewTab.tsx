@@ -73,24 +73,28 @@ export function OverviewTab({ data }: { data: AdminData }) {
       byLang[l] = (byLang[l] ?? 0) + 1;
     }
 
-    // Experience breakdown
+    // Only count sessions that filled in a profile (completed welcome screen)
+    const profileSessions = sessions.filter(s => s.experience_level != null);
+    const noProfile = sessions.length - profileSessions.length;
+
+    // Experience breakdown (profile sessions only)
     const byExp: Record<string, number> = {};
-    for (const s of sessions) {
-      const e = s.experience_level ?? "unknown";
+    for (const s of profileSessions) {
+      const e = s.experience_level!;
       byExp[e] = (byExp[e] ?? 0) + 1;
     }
 
-    // Country breakdown
+    // Country breakdown (profile sessions only)
     const byCountry: Record<string, number> = {};
-    for (const s of sessions) {
-      const c = s.country ?? "unknown";
+    for (const s of profileSessions) {
+      const c = s.country ?? "Not specified";
       byCountry[c] = (byCountry[c] ?? 0) + 1;
     }
 
-    // Time budget breakdown
+    // Time budget breakdown (profile sessions only)
     const byTime: Record<string, number> = {};
-    for (const s of sessions) {
-      const t = s.time_budget_min ? `${s.time_budget_min} min` : "unknown";
+    for (const s of profileSessions) {
+      const t = s.time_budget_min ? `${s.time_budget_min} min` : "Not specified";
       byTime[t] = (byTime[t] ?? 0) + 1;
     }
 
@@ -163,6 +167,7 @@ export function OverviewTab({ data }: { data: AdminData }) {
       preTrustMeans, postTrustMeans,
       preOverall, postOverall,
       changedByCondition, aiUseMap,
+      noProfile, profileSessions: profileSessions.length,
     };
   }, [sessions, trials, sessionsWithTrials]);
 
@@ -189,9 +194,16 @@ export function OverviewTab({ data }: { data: AdminData }) {
           ))}
         </div>
         <div className="glass-panel p-4 space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Time Budget</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Time Budget</h3>
+            {stats.noProfile > 0 && (
+              <span className="text-[10px] text-muted-foreground/60 bg-secondary px-2 py-0.5 rounded border border-border">
+                profile sessions only
+              </span>
+            )}
+          </div>
           {Object.entries(stats.byTime).sort().map(([t, count]) => (
-            <BarRow key={t} label={t} value={count} max={stats.total} color="bg-blue-500" />
+            <BarRow key={t} label={t} value={count} max={stats.profileSessions} color="bg-blue-500" />
           ))}
         </div>
       </div>
@@ -199,13 +211,27 @@ export function OverviewTab({ data }: { data: AdminData }) {
       {/* Demographics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="glass-panel p-4 space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Medical Experience</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Medical Experience</h3>
+            {stats.noProfile > 0 && (
+              <span className="text-[10px] text-muted-foreground/60 bg-secondary px-2 py-0.5 rounded border border-border">
+                {stats.noProfile} session{stats.noProfile !== 1 ? "s" : ""} without profile excluded
+              </span>
+            )}
+          </div>
           {Object.entries(stats.byExp).sort((a, b) => b[1] - a[1]).map(([e, count]) => (
             <BarRow key={e} label={e} value={count} max={maxExp} color="bg-emerald-500" />
           ))}
         </div>
         <div className="glass-panel p-4 space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Country</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Country</h3>
+            {stats.noProfile > 0 && (
+              <span className="text-[10px] text-muted-foreground/60 bg-secondary px-2 py-0.5 rounded border border-border">
+                profile sessions only
+              </span>
+            )}
+          </div>
           {Object.entries(stats.byCountry).sort((a, b) => b[1] - a[1]).map(([c, count]) => (
             <BarRow key={c} label={c} value={count} max={maxCountry} color="bg-violet-500" />
           ))}

@@ -191,6 +191,7 @@ function ImageModal({ trial, onClose }: { trial: RawTrial; onClose: () => void }
 
 function ParticipantDetail({ session, onClose }: { session: SessionWithTrials; onClose: () => void }) {
   const [selectedTrial, setSelectedTrial] = useState<RawTrial | null>(null);
+  const [activeTab, setActiveTab] = useState<"profile" | "trials" | "surveys">("trials");
 
   const mainTrials = session.trials.filter(t => t.trial_type === "main");
   const baselineTrials = session.trials.filter(t => t.trial_type === "baseline");
@@ -200,9 +201,15 @@ function ParticipantDetail({ session, onClose }: { session: SessionWithTrials; o
   const hasPostTrust = session.post_trust_items && session.post_trust_items.length > 0;
   const jianOrder = session.jian_item_order ?? Array.from({ length: 9 }, (_, i) => i);
 
+  const TABS = [
+    { id: "trials" as const, label: `Trials (${session.trials.length})` },
+    { id: "profile" as const, label: "Profile" },
+    { id: "surveys" as const, label: `Surveys (${session.blockSurveys.length})` },
+  ];
+
   return (
     <div className="fixed inset-0 z-40 bg-black/70 flex items-start justify-end">
-      <div className="bg-background border-l border-border h-full w-full max-w-3xl overflow-y-auto p-6 space-y-6">
+      <div className="bg-background border-l border-border h-full w-full max-w-3xl overflow-y-auto p-6 space-y-4">
         {selectedTrial && <ImageModal trial={selectedTrial} onClose={() => setSelectedTrial(null)} />}
 
         {/* Header */}
@@ -219,150 +226,191 @@ function ParticipantDetail({ session, onClose }: { session: SessionWithTrials; o
           </button>
         </div>
 
-        {/* Profile card */}
-        <div className="glass-panel p-4 space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Profile</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-            {[
-              ["Experience", session.experience_level],
-              ["Age", session.age_range],
-              ["Sex", session.sex],
-              ["Country", session.country],
-              ["Semester", session.semester],
-              ["X-Ray Exp.", session.xray_experience],
-              ["X-Ray Volume", session.xray_volume],
-              ["AI General", session.ai_usage_general],
-              ["AI Medicine", session.ai_usage_medicine],
-              ["AI Knowledge", session.ai_knowledge],
-              ["AI Attitude", session.ai_attitude],
-              ["AI Training", session.ai_training],
-              ["CDSS Exp.", session.ai_cdss_experience],
-              ["Time Budget", session.time_budget_min ? `${session.time_budget_min} min` : null],
-              ["Baseline Acc.", session.baseline_accuracy != null ? `${Math.round(session.baseline_accuracy * 100)}%` : null],
-            ].map(([label, value]) => value ? (
-              <div key={label as string}>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-                <p className="text-xs text-foreground font-medium">{value}</p>
-              </div>
-            ) : null)}
-          </div>
-          {session.specialty && session.specialty.length > 0 && (
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Specialty</p>
-              <div className="flex flex-wrap gap-1">
-                {session.specialty.map(s => (
-                  <span key={s} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border text-foreground">{s}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {session.ai_current_use && session.ai_current_use.length > 0 && (
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">AI Current Use</p>
-              <div className="flex flex-wrap gap-1">
-                {session.ai_current_use.map(s => (
-                  <span key={s} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border text-foreground">{s}</span>
-                ))}
-              </div>
-            </div>
-          )}
+        {/* Internal tab bar */}
+        <div className="flex gap-1 border-b border-border pb-0">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t transition-colors ${
+                activeTab === tab.id
+                  ? "bg-secondary text-foreground border border-b-background border-border -mb-px"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Trust scores */}
-        {(hasPreTrust || hasPostTrust) && (
-          <div className="glass-panel p-4 space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jian Trust Scale (1–7)</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
-                    <th className="text-left py-1.5 pr-3">#</th>
-                    <th className="text-left py-1.5 pr-3">Item</th>
-                    <th className="text-right py-1.5 px-2">Pre</th>
-                    <th className="text-right py-1.5 px-2">Post</th>
-                    <th className="text-right py-1.5">Δ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jianOrder.map((originalIdx, displayIdx) => {
-                    const pre = session.pre_trust_items?.[originalIdx];
-                    const post = session.post_trust_items?.[originalIdx];
-                    const delta = pre != null && post != null ? post - pre : null;
-                    return (
-                      <tr key={originalIdx} className="border-b border-border/30">
-                        <td className="py-1 pr-3 font-mono text-muted-foreground">{displayIdx + 1}</td>
-                        <td className="py-1 pr-3 text-muted-foreground">{JIAN_PRE[originalIdx]}</td>
-                        <td className="py-1 px-2 text-right font-mono">{pre ?? "—"}</td>
-                        <td className="py-1 px-2 text-right font-mono">{post ?? "—"}</td>
-                        <td className={`py-1 text-right font-mono ${delta == null ? "" : delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}`}>
-                          {delta != null ? (delta > 0 ? `+${delta}` : String(delta)) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {session.debrief_comments && (
-              <div className="border-t border-border pt-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comments</p>
-                <p className="text-xs text-foreground/80 leading-relaxed">{session.debrief_comments}</p>
+        {/* Tab content */}
+        <div className="space-y-4">
+
+          {/* ── TRIALS TAB ── */}
+          {activeTab === "trials" && (
+            <>
+              {session.trials.length === 0 && (
+                <div className="glass-panel p-6 text-center text-sm text-muted-foreground">
+                  No trials recorded for this session yet.
+                </div>
+              )}
+              {baselineTrials.length > 0 && (
+                <TrialTable label="Baseline Trials" trials={baselineTrials} onSelect={setSelectedTrial} />
+              )}
+              {mainTrials.length > 0 && (
+                <TrialTable label="Main Trials" trials={mainTrials} onSelect={setSelectedTrial} />
+              )}
+              {bonusTrials.length > 0 && (
+                <TrialTable label="Bonus Trials" trials={bonusTrials} onSelect={setSelectedTrial} />
+              )}
+            </>
+          )}
+
+          {/* ── PROFILE TAB ── */}
+          {activeTab === "profile" && (
+            <div className="glass-panel p-4 space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Profile</h3>
+              {session.experience_level == null && (
+                <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
+                  This participant never completed the profile step.
+                </p>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                {[
+                  ["Experience", session.experience_level],
+                  ["Age", session.age_range],
+                  ["Sex", session.sex],
+                  ["Country", session.country],
+                  ["Semester", session.semester],
+                  ["X-Ray Exp.", session.xray_experience],
+                  ["X-Ray Volume", session.xray_volume],
+                  ["AI General", session.ai_usage_general],
+                  ["AI Medicine", session.ai_usage_medicine],
+                  ["AI Knowledge", session.ai_knowledge],
+                  ["AI Attitude", session.ai_attitude],
+                  ["AI Training", session.ai_training],
+                  ["CDSS Exp.", session.ai_cdss_experience],
+                  ["Time Budget", session.time_budget_min ? `${session.time_budget_min} min` : null],
+                  ["Baseline Acc.", session.baseline_accuracy != null ? `${Math.round(session.baseline_accuracy * 100)}%` : null],
+                ].map(([label, value]) => value ? (
+                  <div key={label as string}>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+                    <p className="text-xs text-foreground font-medium">{value}</p>
+                  </div>
+                ) : null)}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Block surveys */}
-        {session.blockSurveys.length > 0 && (
-          <div className="glass-panel p-4 space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Block Surveys (NASA-TLX)</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
-                    <th className="text-left py-1.5 pr-3">Block</th>
-                    <th className="text-left py-1.5 pr-3">Condition</th>
-                    <th className="text-right py-1.5 px-2">Mental</th>
-                    <th className="text-right py-1.5 px-2">Time</th>
-                    <th className="text-right py-1.5 px-2">Frustration</th>
-                    <th className="text-right py-1.5">Trust Pulse</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {session.blockSurveys.map(bs => (
-                    <tr key={bs.id} className="border-b border-border/30">
-                      <td className="py-1 pr-3 font-mono">{bs.block_number}</td>
-                      <td className="py-1 pr-3">
-                        <span className={`inline-flex px-1.5 py-0.5 rounded border text-[10px] font-semibold ${CONDITION_COLORS[bs.condition ?? ""] ?? "bg-secondary text-muted-foreground border-border"}`}>
-                          {bs.condition ?? "?"}
-                        </span>
-                      </td>
-                      <td className="py-1 px-2 text-right font-mono">{bs.nasa_mental ?? "—"}</td>
-                      <td className="py-1 px-2 text-right font-mono">{bs.nasa_time ?? "—"}</td>
-                      <td className="py-1 px-2 text-right font-mono">{bs.nasa_frustration ?? "—"}</td>
-                      <td className="py-1 text-right font-mono">{bs.trust_pulse ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {session.specialty && session.specialty.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Specialty</p>
+                  <div className="flex flex-wrap gap-1">
+                    {session.specialty.map(s => (
+                      <span key={s} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border text-foreground">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {session.ai_current_use && session.ai_current_use.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">AI Current Use</p>
+                  <div className="flex flex-wrap gap-1">
+                    {session.ai_current_use.map(s => (
+                      <span key={s} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded border border-border text-foreground">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Baseline trials */}
-        {baselineTrials.length > 0 && (
-          <TrialTable label="Baseline Trials" trials={baselineTrials} onSelect={setSelectedTrial} />
-        )}
+          {/* ── SURVEYS TAB ── */}
+          {activeTab === "surveys" && (
+            <>
+              {(hasPreTrust || hasPostTrust) && (
+                <div className="glass-panel p-4 space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Jian Trust Scale (1–7)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
+                          <th className="text-left py-1.5 pr-3">#</th>
+                          <th className="text-left py-1.5 pr-3">Item</th>
+                          <th className="text-right py-1.5 px-2">Pre</th>
+                          <th className="text-right py-1.5 px-2">Post</th>
+                          <th className="text-right py-1.5">Δ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jianOrder.map((originalIdx, displayIdx) => {
+                          const pre = session.pre_trust_items?.[originalIdx];
+                          const post = session.post_trust_items?.[originalIdx];
+                          const delta = pre != null && post != null ? post - pre : null;
+                          return (
+                            <tr key={originalIdx} className="border-b border-border/30">
+                              <td className="py-1 pr-3 font-mono text-muted-foreground">{displayIdx + 1}</td>
+                              <td className="py-1 pr-3 text-muted-foreground">{JIAN_PRE[originalIdx]}</td>
+                              <td className="py-1 px-2 text-right font-mono">{pre ?? "—"}</td>
+                              <td className="py-1 px-2 text-right font-mono">{post ?? "—"}</td>
+                              <td className={`py-1 text-right font-mono ${delta == null ? "" : delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                                {delta != null ? (delta > 0 ? `+${delta}` : String(delta)) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {session.debrief_comments && (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Comments</p>
+                      <p className="text-xs text-foreground/80 leading-relaxed">{session.debrief_comments}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {session.blockSurveys.length > 0 && (
+                <div className="glass-panel p-4 space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Block Surveys (NASA-TLX)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border text-[10px] text-muted-foreground uppercase">
+                          <th className="text-left py-1.5 pr-3">Block</th>
+                          <th className="text-left py-1.5 pr-3">Condition</th>
+                          <th className="text-right py-1.5 px-2">Mental</th>
+                          <th className="text-right py-1.5 px-2">Time</th>
+                          <th className="text-right py-1.5 px-2">Frustration</th>
+                          <th className="text-right py-1.5">Trust Pulse</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {session.blockSurveys.map(bs => (
+                          <tr key={bs.id} className="border-b border-border/30">
+                            <td className="py-1 pr-3 font-mono">{bs.block_number}</td>
+                            <td className="py-1 pr-3">
+                              <span className={`inline-flex px-1.5 py-0.5 rounded border text-[10px] font-semibold ${CONDITION_COLORS[bs.condition ?? ""] ?? "bg-secondary text-muted-foreground border-border"}`}>
+                                {bs.condition ?? "?"}
+                              </span>
+                            </td>
+                            <td className="py-1 px-2 text-right font-mono">{bs.nasa_mental ?? "—"}</td>
+                            <td className="py-1 px-2 text-right font-mono">{bs.nasa_time ?? "—"}</td>
+                            <td className="py-1 px-2 text-right font-mono">{bs.nasa_frustration ?? "—"}</td>
+                            <td className="py-1 text-right font-mono">{bs.trust_pulse ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {!hasPreTrust && !hasPostTrust && session.blockSurveys.length === 0 && (
+                <div className="glass-panel p-6 text-center text-sm text-muted-foreground">
+                  No survey data recorded for this session.
+                </div>
+              )}
+            </>
+          )}
 
-        {/* Main trials */}
-        {mainTrials.length > 0 && (
-          <TrialTable label="Main Trials" trials={mainTrials} onSelect={setSelectedTrial} />
-        )}
-
-        {/* Bonus trials */}
-        {bonusTrials.length > 0 && (
-          <TrialTable label="Bonus Trials" trials={bonusTrials} onSelect={setSelectedTrial} />
-        )}
+        </div>
       </div>
     </div>
   );
