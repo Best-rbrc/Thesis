@@ -11,6 +11,12 @@
   }
 }
 
+/* Prevent horizontal overflow/scrolling on all screens */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 @layer base {
   :root {
     --background: 220 18% 7%;

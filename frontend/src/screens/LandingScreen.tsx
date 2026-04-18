@@ -44,8 +44,8 @@ const LandingScreen = () => {
     <div className="min-h-screen flex flex-col bg-background">
       <SystemHeader />
 
-      <main className="flex-1 flex items-center justify-center px-5">
-        <div className="max-w-md w-full py-12">
+      <main className="flex-1 flex items-center justify-center overflow-x-hidden">
+        <div className="max-w-md w-full px-5 py-12">
           <p className="text-xs font-medium text-primary tracking-[0.15em] uppercase mb-3">{t("app.subtitle")}</p>
 
           <h1 className="text-2xl sm:text-3xl font-semibold text-foreground leading-tight tracking-tight mb-4">
