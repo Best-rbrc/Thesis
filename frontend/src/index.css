@@ -4,6 +4,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* iOS Safari 100vh fix: use dynamic viewport height so browser chrome is excluded */
+@supports (min-height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
 @layer base {
   :root {
     --background: 220 18% 7%;
