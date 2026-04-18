@@ -391,13 +391,22 @@ function loadFromStorage(code: string): StudyState | null {
   } catch { return null; }
 }
 
-function insertAttentionCheck(cases: CaseData[]): CaseData[] {
+// Deterministic hash: maps a session code to one of 5 Latin-square rows (0–4).
+// Same code always produces the same index, giving ~uniform distribution.
+function codeToSessionIndex(code: string): number {
+  let h = 0;
+  for (const c of code) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return h % 5;
+}
+
+// Attention check is placed at a deterministic position derived from the session
+// code so that resuming a session always reconstructs the same case list.
+function insertAttentionCheck(cases: CaseData[], seed: string): CaseData[] {
   if (cases.length < 4) return cases;
   const result = [...cases];
-  // Insert in middle 60%
   const start = Math.floor(cases.length * 0.2);
   const end = Math.floor(cases.length * 0.8);
-  const pos = start + Math.floor(Math.random() * (end - start));
+  const pos = start + (codeToSessionIndex(seed) * 3 + seed.charCodeAt(0)) % (end - start);
   result.splice(pos, 0, { ...ATTENTION_CHECK_CASE });
   return result;
 }
@@ -421,7 +430,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     activeCases: [],
     bonusCases: [],
     casesPerBlock: 2,
-    sessionIndex: Date.now() % 5,
+    sessionIndex: 0,
     jianItemOrder: [0, 1, 2, 3, 4, 5, 6, 7, 8],
   });
 
@@ -461,12 +470,13 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
   const generateSessionCode = useCallback((): string => {
     const code = makeCode();
+    const sessionIndex = codeToSessionIndex(code);
     const jianOrder = generateJianOrder(code);
-    setState(s => ({ ...s, sessionCode: code, jianItemOrder: jianOrder }));
-    studyDataService.createSession(code, state.sessionIndex);
+    setState(s => ({ ...s, sessionCode: code, sessionIndex, jianItemOrder: jianOrder }));
+    studyDataService.createSession(code, sessionIndex);
     studyDataService.saveJianItemOrder(code, jianOrder);
     return code;
-  }, [state.sessionIndex]);
+  }, []);
 
   const resumeSession = useCallback(async (code: string): Promise<boolean> => {
     const upperCode = code.toUpperCase();
@@ -478,9 +488,9 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
         const dbTrials = await studyDataService.loadTrials(dbSession.id);
         
         const nCases = dbSession.n_cases || 8;
-        const sessionIdx = dbSession.session_index ?? (Date.now() % 5);
+        const sessionIdx = dbSession.session_index ?? codeToSessionIndex(upperCode);
         const cases = generateCaseOrder(sessionIdx, nCases);
-        const casesWithAttention = insertAttentionCheck(cases);
+        const casesWithAttention = insertAttentionCheck(cases, upperCode);
         const cpb = Math.floor(nCases / TOTAL_BLOCKS);
         const jianOrder = generateJianOrder(upperCode);
 
@@ -595,11 +605,13 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
   const initializeCases = useCallback((timeBudget: number) => {
     const nCases = TIME_TO_CASES[timeBudget] || 8;
-    const cases = generateCaseOrder(state.sessionIndex, nCases);
-    const casesWithAttention = insertAttentionCheck(cases);
-    const cpb = Math.floor(nCases / TOTAL_BLOCKS);
-    setState(s => ({ ...s, activeCases: casesWithAttention, casesPerBlock: cpb }));
-  }, [state.sessionIndex]);
+    setState(s => {
+      const cases = generateCaseOrder(s.sessionIndex, nCases);
+      const casesWithAttention = insertAttentionCheck(cases, s.sessionCode);
+      const cpb = Math.floor(nCases / TOTAL_BLOCKS);
+      return { ...s, activeCases: casesWithAttention, casesPerBlock: cpb };
+    });
+  }, []);
 
   const initializeBonusCases = useCallback(() => {
     const bonus = generateCaseOrder((state.sessionIndex + 1) % 5, BONUS_CASE_COUNT);

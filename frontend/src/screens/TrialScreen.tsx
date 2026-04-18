@@ -20,7 +20,8 @@ const TrialScreen = () => {
   const [confidence, setConfidence] = useState(50);
   const [revisedFindings, setRevisedFindings] = useState<string[]>([]);
   const [revisedConfidence, setRevisedConfidence] = useState(50);
-  const [aiHelpful, setAiHelpful] = useState(50);
+  /** Unset until the participant rates AI helpfulness (sliders default to 50 would otherwise skip intent). */
+  const [aiHelpful, setAiHelpful] = useState<number | null>(null);
   const [overlayView, setOverlayView] = useState<OverlayView>("original");
   const [selectedOverlayFinding, setSelectedOverlayFinding] = useState<string>("cardiomegaly");
   const [biasAcknowledged, setBiasAcknowledged] = useState(false);
@@ -65,6 +66,12 @@ const TrialScreen = () => {
   const normalizedInitialFindings = selectedFindings.filter(id => id !== NO_FINDING_ID);
   const normalizedRevisedFindings = revisedFindings.filter(id => id !== NO_FINDING_ID);
 
+  const phase2FormComplete =
+    revisedFindings.length > 0 &&
+    aiHelpful !== null &&
+    (!showExplanations || (xaiFaithful != null && xaiHelpful != null)) &&
+    (!showAI || changedMind !== null);
+
   const handleLockIn = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -81,16 +88,20 @@ const TrialScreen = () => {
       setRevisedConfidence(confidence);
       phase2StartTime.current = Date.now();
       if (showBias) bannerShowTime.current = Date.now();
-      // Default overlay finding to highest AI confidence prediction
-      const topPred = [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)[0];
-      if (topPred) setSelectedOverlayFinding(topPred.findingId);
+      if (showAIPredictions) {
+        const topPred = [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)[0];
+        if (topPred) setSelectedOverlayFinding(topPred.findingId);
+      } else {
+        const firstNeutral = FINDINGS.map(f => f.id).find(id => currentCase.overlays?.gradcam?.[id]);
+        if (firstNeutral) setSelectedOverlayFinding(firstNeutral);
+      }
       setPhase(2);
       setIsSubmitting(false);
     }
   };
 
   const handleSubmit = () => {
-    if (isSubmitting) return;
+    if (isSubmitting || !phase2FormComplete) return;
     setIsSubmitting(true);
     const responseTimePostMs = phase2StartTime.current ? Date.now() - phase2StartTime.current : undefined;
     const timeOnBannerMs = showBias && bannerShowTime.current && biasAcknowledged ? Date.now() - bannerShowTime.current : undefined;
@@ -98,7 +109,7 @@ const TrialScreen = () => {
       caseId: currentCase.id, condition: currentCase.condition, category: currentCase.category,
       groundTruth: currentCase.groundTruth, aiPredictions: currentCase.aiPredictions,
       initialFindings: normalizedInitialFindings, initialConfidence: confidence,
-      revisedFindings: normalizedRevisedFindings, revisedConfidence, aiHelpful,
+      revisedFindings: normalizedRevisedFindings, revisedConfidence, aiHelpful: aiHelpful!,
       xaiHelpful: showExplanations ? (xaiHelpful as any) : undefined,
       xaiFaithful: showExplanations ? (xaiFaithful as any) : undefined,
       xaiViewSelected: showExplanations ? overlayView : undefined,
@@ -112,7 +123,7 @@ const TrialScreen = () => {
 
   const resetAndNext = () => {
     setSelectedFindings([]); setConfidence(50); setRevisedFindings([]); setRevisedConfidence(50);
-    setAiHelpful(50); setOverlayView("original"); setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
+    setAiHelpful(null); setOverlayView("original"); setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
     setXaiFaithful(null); setXaiHelpful(null); setChangedMind(null);
     startTime.current = Date.now(); phase2StartTime.current = null; bannerShowTime.current = null;
     setIsSubmitting(false);
@@ -120,6 +131,13 @@ const TrialScreen = () => {
   };
 
   const showOverlay = overlayView !== "original" && phase === 2;
+
+  const gradcamByFinding = currentCase.overlays?.gradcam ?? {};
+  const overlayChipItems: { findingId: string; confidence?: number }[] = showAIPredictions
+    ? [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)
+    : FINDINGS.map(f => f.id)
+        .filter(id => !!gradcamByFinding[id])
+        .map(findingId => ({ findingId }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -151,9 +169,9 @@ const TrialScreen = () => {
         phaseLabel={phase === 1 ? t("trial.phase1") : t("trial.phase2")}
       />
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* Image viewer */}
-        <div className="lg:flex-1 bg-black/20 flex flex-col items-center justify-center p-4 sm:p-6 relative">
+        <div className="shrink-0 lg:flex-1 lg:min-h-0 bg-black/20 flex flex-col items-center justify-center p-4 sm:p-6 relative">
           {showBias && !biasAcknowledged && phase === 2 && (
             <div className="absolute top-3 left-3 right-3 bg-card border border-warning/30 rounded p-3 flex items-start gap-2 z-10 animate-fade-in">
               <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
@@ -164,7 +182,7 @@ const TrialScreen = () => {
             </div>
           )}
 
-          <div className="relative w-full max-w-lg aspect-square bg-black rounded overflow-hidden border border-border/50">
+          <div className="relative w-full max-w-lg max-h-[min(85dvh,100vw)] aspect-square bg-black rounded overflow-hidden border border-border/50">
             <img src={currentCase.imageUrl} alt={`Case ${currentCase.id}`} className="w-full h-full object-contain" />
             {showOverlay && (() => {
               const overlayUrl = currentCase.overlays?.[overlayView as "gradcam"]?.[selectedOverlayFinding];
@@ -191,7 +209,7 @@ const TrialScreen = () => {
                   <button
                     key={view}
                     onClick={() => setOverlayView(view)}
-                    className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                    className={`flex-1 min-h-[44px] lg:min-h-0 lg:py-2 px-2 flex items-center justify-center text-xs font-medium transition-colors ${
                       overlayView === view
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-muted-foreground hover:text-foreground"
@@ -203,24 +221,25 @@ const TrialScreen = () => {
               </div>
 
               {/* Per-finding selector — always reserves space to prevent layout jump */}
-              <div className={`flex gap-1 overflow-x-auto pb-0.5 transition-opacity duration-150 ${overlayView === "original" ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
-                {currentCase.aiPredictions
-                  .slice()
-                  .sort((a, b) => b.confidence - a.confidence)
-                  .map(pred => (
-                    <button
-                      key={pred.findingId}
-                      onClick={() => setSelectedOverlayFinding(pred.findingId)}
-                      className={`shrink-0 px-2.5 py-1 rounded text-[11px] font-medium transition-colors border ${
-                        selectedOverlayFinding === pred.findingId
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-secondary/50 text-muted-foreground border-border hover:text-foreground"
-                      }`}
-                    >
-                      {t(`finding.${pred.findingId}`)}
-                      <span className="ml-1 opacity-60 font-mono">{pred.confidence}%</span>
-                    </button>
-                  ))}
+              <div
+                className={`flex flex-wrap sm:flex-nowrap gap-1.5 sm:gap-1 -mx-1 px-1 sm:overflow-x-auto sm:pb-0.5 snap-x snap-mandatory sm:snap-none transition-opacity duration-150 ${overlayView === "original" ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+              >
+                {overlayChipItems.map(item => (
+                  <button
+                    key={item.findingId}
+                    onClick={() => setSelectedOverlayFinding(item.findingId)}
+                    className={`shrink-0 snap-start min-h-[40px] sm:min-h-0 px-2.5 py-2 sm:py-1 rounded text-[11px] font-medium transition-colors border inline-flex items-center ${
+                      selectedOverlayFinding === item.findingId
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-secondary/50 text-muted-foreground border-border hover:text-foreground"
+                    }`}
+                  >
+                    {t(`finding.${item.findingId}`)}
+                    {showAIPredictions && item.confidence !== undefined && (
+                      <span className="ml-1 opacity-60 font-mono">{item.confidence}%</span>
+                    )}
+                  </button>
+                ))}
               </div>
 
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -232,7 +251,7 @@ const TrialScreen = () => {
         </div>
 
         {/* Panel */}
-        <div className="lg:w-[400px] border-l border-border bg-card/30 p-4 sm:p-5 space-y-4 overflow-y-auto">
+        <div className="lg:w-[400px] lg:min-h-0 border-l border-border bg-card/30 p-4 sm:p-5 space-y-4 lg:overflow-y-auto">
           {currentCase.clinicalContext && (
             <div className="rounded border border-primary/20 bg-primary/5 px-3 py-2">
               <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-0.5">{t("trial.clinicalContext")}</p>
@@ -305,7 +324,7 @@ const TrialScreen = () => {
                 <ToggleGroup label={t("trial.changedMind")} value={changedMind === null ? null : String(changedMind)} options={["true", "false"]} labelFn={o => o === "true" ? t("trial.yes") : t("trial.no")} onChange={v => setChangedMind(v === "true")} />
               )}
 
-              <Button onClick={handleSubmit} disabled={revisedFindings.length === 0 || isSubmitting} className="w-full h-10 rounded text-sm">
+              <Button onClick={handleSubmit} disabled={!phase2FormComplete || isSubmitting} className="w-full h-10 rounded text-sm">
                 <Send className="w-4 h-4 mr-2" /> {t("trial.submitNext")}
               </Button>
             </>
@@ -316,14 +335,14 @@ const TrialScreen = () => {
   );
 };
 
-const SliderField = ({ label, value, onChange, minLabel, maxLabel }: { label: string; value: number; onChange: (v: number) => void; minLabel?: string; maxLabel?: string }) => (
+const SliderField = ({ label, value, onChange, minLabel, maxLabel }: { label: string; value: number | null; onChange: (v: number) => void; minLabel?: string; maxLabel?: string }) => (
   <div className="space-y-2">
     <div className="flex items-center justify-between">
       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
-      <span className="text-sm text-primary font-mono font-medium">{value}%</span>
+      <span className="text-sm text-primary font-mono font-medium">{value === null ? "—" : `${value}%`}</span>
     </div>
       <Slider
-        value={[value]}
+        value={[value ?? 50]}
         min={0}
         max={100}
         step={1}

@@ -626,21 +626,24 @@ const mk = (
 const FIXED_10: CaseData[] = [
   // Block 1 — easy cases
   mk("fx-01", IMG.p37124, "easy", ["edema"],             ["edema"], [],                          "context.case02"),
-  mk("fx-02", IMG.p00008, "easy", ["pleural_effusion"],  ["pleural_effusion"], [],               "context.case03"),
+  mk("fx-02", IMG.p00008, "easy", ["pleural_effusion"],  ["pleural_effusion"], [],               "context.case03",
+     "⚠ AP image · Elderly patient (81M) · AP positioning may overestimate cardiac silhouette; model calibration for patients 80+ may be reduced"),
   // Block 2 — hard cases
   mk("fx-03", IMG.p59546, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
      ["edema","pleural_effusion"], ["cardiomegaly","consolidation","atelectasis"],        "context.case05"),
   mk("fx-04", IMG.p31804, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
-     ["cardiomegaly","edema","pleural_effusion"], ["consolidation","atelectasis"],        "context.case07"),
+     ["cardiomegaly","edema","pleural_effusion"], ["consolidation","atelectasis"],        "context.case07",
+     "⚠ AP (bedside) image · Elderly female patient (78F) · Cardiac size thresholds differ by sex; AP imaging reduces diagnostic quality compared to PA"),
   // Block 3 — incidental pneumothorax (AI detects strongly)
   mk("fx-05", IMG.p05319, "incidental",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion","pneumothorax"],
      ["consolidation","pleural_effusion"], ["pneumothorax","cardiomegaly","edema","atelectasis"], "context.case13"),
   mk("fx-06", IMG.p36698, "incidental",
      ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
-     ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case15"),
+     ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case15",
+     "⚠ AP image · Female patient (44F) · Pneumothorax is harder to detect on supine AP images; AI confidence for pneumothorax may be lower than on PA images"),
   // Block 4 — easy + hard
   mk("fx-07", IMG.p34852, "easy", ["consolidation"], ["consolidation"], [],              "context.case04"),
   mk("fx-08", IMG.p38933, "hard",
