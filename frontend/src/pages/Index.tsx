@@ -52,6 +52,17 @@ const StudyRouter = () => {
     }
   }, [screen]);
 
+  const prevDisplayed = useRef(displayedScreen);
+  useEffect(() => {
+    if (prevDisplayed.current === "landing" && displayedScreen !== "landing") {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+    }
+    prevDisplayed.current = displayedScreen;
+  }, [displayedScreen]);
+
   return (
     <div
       className="transition-opacity duration-200 ease-in-out"

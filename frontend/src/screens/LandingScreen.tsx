@@ -16,11 +16,16 @@ const LandingScreen = () => {
   const [accessCode, setAccessCode] = useState("");
   const [accessError, setAccessError] = useState(false);
 
+  const blurActiveInput = () => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  };
+
   const handleStart = () => {
     if (accessCode.trim().toUpperCase() !== STUDY_ACCESS_CODE) {
       setAccessError(true);
       return;
     }
+    blurActiveInput();
     generateSessionCode();
     setScreen("consent");
   };
@@ -32,6 +37,7 @@ const LandingScreen = () => {
     const ok = await resumeSession(code);
     setResumeLoading(false);
     if (!ok) { setResumeError(true); return; }
+    blurActiveInput();
   };
 
   return (
@@ -54,7 +60,7 @@ const LandingScreen = () => {
             {/* Access code gate */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <div className={`flex flex-1 items-center gap-2 h-10 px-3 rounded border bg-secondary transition-shadow ${
+                <div className={`flex flex-1 items-center gap-2 min-h-[44px] sm:h-10 px-3 rounded border bg-secondary transition-shadow ${
                   accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
                 }`}>
                   <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -64,7 +70,7 @@ const LandingScreen = () => {
                     onChange={e => { setAccessCode(e.target.value); setAccessError(false); }}
                     onKeyDown={e => e.key === "Enter" && handleStart()}
                     placeholder={language === "en" ? "Access code" : "Zugangscode"}
-                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    className="flex-1 min-h-0 bg-transparent text-base text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
                     autoComplete="off"
                   />
                 </div>
@@ -107,7 +113,7 @@ const LandingScreen = () => {
                     onChange={e => { setResumeCode(e.target.value.toUpperCase()); setResumeError(false); }}
                     placeholder="Z.B. X4K9M2"
                     maxLength={6}
-                    className={`flex-1 h-9 px-3 rounded bg-secondary border text-sm font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
+                    className={`flex-1 min-h-[44px] sm:h-10 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
                       resumeError ? "border-destructive" : "border-border"
                     }`}
                   />
