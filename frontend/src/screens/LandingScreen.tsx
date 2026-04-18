@@ -60,7 +60,7 @@ const LandingScreen = () => {
             {/* Access code gate */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <div className={`flex flex-1 items-center gap-2 min-h-[44px] sm:h-10 px-3 rounded border bg-secondary transition-shadow ${
+                <div className={`flex flex-1 items-center gap-2 h-10 px-3 rounded border bg-secondary transition-shadow ${
                   accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
                 }`}>
                   <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -113,7 +113,7 @@ const LandingScreen = () => {
                     onChange={e => { setResumeCode(e.target.value.toUpperCase()); setResumeError(false); }}
                     placeholder="Z.B. X4K9M2"
                     maxLength={6}
-                    className={`flex-1 min-h-[44px] sm:h-10 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
+                    className={`flex-1 h-10 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
                       resumeError ? "border-destructive" : "border-border"
                     }`}
                   />
