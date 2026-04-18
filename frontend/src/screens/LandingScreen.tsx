@@ -59,8 +59,8 @@ const LandingScreen = () => {
           <div className="flex flex-col gap-3 mb-8">
             {/* Access code gate */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <div className={`flex flex-1 items-center gap-2 h-10 px-3 rounded border bg-secondary transition-shadow ${
+              <div className="flex items-center gap-2 w-full">
+                <div className={`flex flex-1 items-center gap-2 h-9 px-3 rounded border bg-secondary transition-shadow ${
                   accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
                 }`}>
                   <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -76,9 +76,9 @@ const LandingScreen = () => {
                 </div>
                 <button
                   onClick={handleStart}
-                  className="group inline-flex items-center justify-center gap-2 h-10 px-5 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all shrink-0"
+                  aria-label={t("landing.start")}
+                  className="group inline-flex items-center justify-center h-9 w-9 rounded bg-primary text-primary-foreground hover:brightness-110 transition-all shrink-0"
                 >
-                  {t("landing.start")}
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
               </div>
@@ -94,7 +94,7 @@ const LandingScreen = () => {
             {!showResume ? (
               <button
                 onClick={() => setShowResume(true)}
-                className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded bg-secondary text-secondary-foreground text-xs font-medium hover:bg-accent transition-all"
+                className="w-full inline-flex items-center justify-center gap-2 h-9 px-4 rounded bg-secondary text-secondary-foreground text-xs font-medium hover:bg-accent transition-all"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 {language === "en" ? "I have a session code" : "Ich habe einen Sitzungscode"}
@@ -113,14 +113,14 @@ const LandingScreen = () => {
                     onChange={e => { setResumeCode(e.target.value.toUpperCase()); setResumeError(false); }}
                     placeholder="Z.B. X4K9M2"
                     maxLength={6}
-                    className={`flex-1 h-10 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
+                    className={`flex-1 h-9 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
                       resumeError ? "border-destructive" : "border-border"
                     }`}
                   />
                   <button
                     onClick={handleResume}
                     disabled={resumeCode.length < 4 || resumeLoading}
-                    className="h-9 px-4 rounded bg-primary text-primary-foreground text-xs font-medium hover:brightness-110 transition-all disabled:opacity-30"
+                    className="h-9 w-9 inline-flex items-center justify-center rounded bg-primary text-primary-foreground hover:brightness-110 transition-all disabled:opacity-30 shrink-0"
                   >
                     {resumeLoading ? (
                       <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
