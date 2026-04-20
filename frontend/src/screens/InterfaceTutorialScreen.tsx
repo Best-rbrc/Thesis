@@ -72,6 +72,19 @@ const InterfaceTutorialScreen = () => {
 
   const steps = [
     {
+      icon: Info,
+      title: t("tutorial.step0.title"),
+      content: (
+        <div className="space-y-3">
+          <div className="rounded border border-primary/25 bg-primary/5 p-3">
+            <p className="text-sm text-foreground leading-relaxed">{t("tutorial.step0.body1")}</p>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">{t("tutorial.step0.body2")}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{t("tutorial.step0.body3")}</p>
+        </div>
+      ),
+    },
+    {
       icon: Eye,
       title: t("tutorial.step1.title"),
       content: (

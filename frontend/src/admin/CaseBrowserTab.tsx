@@ -317,7 +317,7 @@ function CaseDetail({ caseData, trials, onClose }: {
               {showOverlay && caseData.overlays?.gradcam[showOverlay] && (
                 <img
                   src={caseData.overlays.gradcam[showOverlay]}
-                  alt="Grad-CAM overlay"
+                  alt="Heatmap overlay"
                   className="absolute inset-0 w-full h-full object-contain"
                   style={{ mixBlendMode: "screen", opacity: 0.85 }}
                 />
@@ -327,7 +327,7 @@ function CaseDetail({ caseData, trials, onClose }: {
             {/* Overlay selector */}
             {caseData.overlays && (
               <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Grad-CAM Overlay</p>
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Heatmap Overlay</p>
                 <div className="flex flex-wrap gap-1">
                   <button
                     onClick={() => setShowOverlay(null)}
