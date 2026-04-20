@@ -7,7 +7,7 @@ const BonusOfferScreen = () => {
 
   const handleAccept = () => {
     initializeBonusCases();
-    setScreen("bonus-round");
+    setScreen("trial");
   };
 
   return (
@@ -34,8 +34,8 @@ const BonusOfferScreen = () => {
           <div className="glass-panel p-3 text-xs text-muted-foreground">
             <p>
               {language === "en"
-                ? "≈ 4 additional cases · ~3–5 minutes · Same format as before"
-                : "≈ 4 zusätzliche Fälle · ~3–5 Minuten · Selbes Format wie zuvor"}
+                ? "≈ 5 additional cases · ~5–8 minutes · Same format as before"
+                : "≈ 5 zusätzliche Fälle · ~5–8 Minuten · Selbes Format wie zuvor"}
             </p>
           </div>
 

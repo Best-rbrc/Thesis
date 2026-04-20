@@ -19,7 +19,7 @@ const SystemHeader = ({ breadcrumb, rightContent, progress, phaseLabel, showFind
   const [showConfirm, setShowConfirm] = useState(false);
   const [showFindings, setShowFindings] = useState(false);
 
-  const studyScreens = ["tutorial", "baseline", "trial", "block-break", "bonus-offer", "bonus-round", "debrief", "pre-survey"];
+  const studyScreens = ["tutorial", "baseline", "trial", "block-break", "bonus-offer", "debrief", "pre-survey"];
 
   const copyCode = () => {
     if (!sessionCode) return;
@@ -30,7 +30,7 @@ const SystemHeader = ({ breadcrumb, rightContent, progress, phaseLabel, showFind
   };
 
   const handleLogoClick = () => {
-    const activeScreens = ["welcome", "consent", "interface-tutorial", "baseline", "pre-survey", "tutorial", "trial", "block-break", "bonus-offer", "bonus-round", "debrief"];
+    const activeScreens = ["welcome", "consent", "interface-tutorial", "baseline", "pre-survey", "tutorial", "trial", "block-break", "bonus-offer", "debrief"];
     if (activeScreens.includes(screen)) {
       setShowConfirm(true);
     } else {

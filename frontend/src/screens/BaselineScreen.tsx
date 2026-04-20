@@ -127,7 +127,7 @@ const BaselineScreen = () => {
               step={1}
               disabled={submitted}
               onValueChange={(vals) => !submitted && setConfidence(vals[0] ?? 0)}
-              className="w-full"
+              className={`w-full ${confidence === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
             />
             <div className="flex justify-between text-xs text-muted-foreground/60">
               <span>{t("trial.notConfident")}</span>

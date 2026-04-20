@@ -26,9 +26,11 @@ const DebriefScreen = () => {
 
   const getRating = (displayIndex: number): number | null => trustItems[displayOrder[displayIndex]];
 
+  const commentsTooShort = comments.trim().length < 10;
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
-    if (trustItems.some(r => r === null)) {
+    if (trustItems.some(r => r === null) || commentsTooShort) {
       setShowErrors(true);
       setTimeout(() => {
         document.querySelector("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -167,17 +169,23 @@ const DebriefScreen = () => {
             })}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("debrief.comments")} <span className="font-normal normal-case">{t("debrief.optional")}</span>
+          <div className="space-y-2" data-error={showErrors && commentsTooShort ? "true" : undefined}>
+            <label className={`text-xs font-semibold uppercase tracking-wider ${showErrors && commentsTooShort ? "text-destructive" : "text-muted-foreground"}`}>
+              {t("debrief.comments")} <span className="text-destructive">*</span>
             </label>
             <textarea
               value={comments}
               onChange={e => setComments(e.target.value)}
               placeholder={t("debrief.placeholder")}
-              rows={3}
-              className="w-full rounded bg-secondary border border-border p-3 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary transition-shadow"
+              rows={4}
+              className={`w-full rounded bg-secondary border p-3 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary transition-shadow ${showErrors && commentsTooShort ? "border-destructive ring-1 ring-destructive/30" : "border-border"}`}
             />
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">{t("debrief.commentHint")}</p>
+            {showErrors && commentsTooShort && (
+              <p className="text-xs text-destructive">
+                {language === "en" ? "Please share your feedback (at least a short sentence)." : "Bitte teile dein Feedback (mindestens ein kurzer Satz)."}
+              </p>
+            )}
           </div>
 
           <button

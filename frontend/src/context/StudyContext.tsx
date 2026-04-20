@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from "react";
-import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, LATIN_SQUARES, generateCaseOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
+import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, LATIN_SQUARES, generateCaseOrder, generateBonusOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
 import { studyDataService } from "@/services/studyDataService";
 import { toast } from "sonner";
 import { StudyContext } from "./study-context";
@@ -256,7 +256,6 @@ const translations: Record<string, Record<Language, string>> = {
   "trial.hideHeatmap": { en: "Hide AI Heatmap", de: "KI-Heatmap ausblenden" },
   "trial.overlay.original": { en: "Original", de: "Original" },
   "trial.overlay.gradcam": { en: "Heatmap", de: "Heatmap" },
-  "trial.overlay.intgrad": { en: "Int. Gradients", de: "Int. Gradients" },
   "trial.overlayHint": { en: "Try switching views to see where the AI focuses", de: "Wechsle die Ansicht, um zu sehen, worauf die KI achtet" },
   "trial.xaiFaithful": { en: "Was the highlighted region in the right area?", de: "War die hervorgehobene Region im richtigen Bereich?" },
   "trial.xaiFaithful.yes": { en: "Yes", de: "Ja" },
@@ -285,9 +284,10 @@ const translations: Record<string, Record<Language, string>> = {
   // Debrief
   "debrief.title": { en: "Study Complete: Final Survey", de: "Studie abgeschlossen: Abschlussbefragung" },
   "debrief.subtitle": { en: "Please rate these statements about the AI system you just used.", de: "Bitte bewerte diese Aussagen über das KI-System, das du gerade verwendet hast." },
-  "debrief.comments": { en: "Additional comments", de: "Weitere Kommentare" },
+  "debrief.comments": { en: "Your feedback", de: "Dein Feedback" },
   "debrief.optional": { en: "(optional)", de: "(optional)" },
-  "debrief.placeholder": { en: "Share any thoughts about your experience...", de: "Teile deine Gedanken mit..." },
+  "debrief.placeholder": { en: "e.g. Did you find the AI predictions helpful or distracting? Were the heatmaps easy to interpret? Did you feel the bias warnings changed your approach? Any issues with the interface?", de: "z. B. Fandest du die KI-Vorhersagen hilfreich oder ablenkend? Waren die Heatmaps leicht zu interpretieren? Haben die Verzerrungswarnungen deine Herangehensweise verändert? Gab es Probleme mit der Oberfläche?" },
+  "debrief.commentHint": { en: "A few sentences are enough — e.g. what you found helpful, confusing, or surprising about the AI tools.", de: "Ein paar Sätze genügen — z. B. was du an den KI-Tools hilfreich, verwirrend oder überraschend fandest." },
   "debrief.submit": { en: "Submit & Finish", de: "Absenden & Beenden" },
   "debrief.thanks": { en: "Thank You!", de: "Vielen Dank!" },
   "debrief.thanksMessage": { en: "Your responses have been recorded. Thank you for participating in this study.", de: "Deine Antworten wurden aufgezeichnet. Vielen Dank für die Teilnahme an dieser Studie." },
@@ -345,12 +345,17 @@ const translations: Record<string, Record<Language, string>> = {
   "context.fx18": { en: "57M, haemoptysis and night sweats, weight loss over 6 weeks", de: "57M, Hämoptyse und Nachtschweiß, Gewichtsverlust über 6 Wochen" },
   "context.fx19": { en: "33M, chest pain after minor trauma, SpO2 94% on room air", de: "33M, Brustschmerz nach Bagatelltrauma, SpO2 94% bei Raumluft" },
   "context.fx20": { en: "33M, pre-employment medical screening, no symptoms", de: "33M, Einstellungsuntersuchung, keine Beschwerden" },
+  // Bonus round clinical contexts
+  "context.bonus01": { en: "55M, progressive exertional dyspnoea, referred for cardiac evaluation", de: "55M, zunehmende Belastungsdyspnoe, zur kardiologischen Abklärung überwiesen" },
+  "context.bonus02": { en: "71F, acute worsening dyspnoea, bilateral crackles, known heart failure", de: "71W, akut zunehmende Atemnot, bilaterale Rasselgeräusche, bekannte Herzinsuffizienz" },
+  "context.bonus03": { en: "61F, acute respiratory distress, transferred from surgical ward", de: "61W, akute Atemnot, Verlegung von chirurgischer Station" },
+  "context.bonus04": { en: "63M, routine health check-up, no respiratory complaints", de: "63M, Routine-Gesundheitsuntersuchung, keine Atemwegsbeschwerden" },
+  "context.bonus05": { en: "80M, worsening cough and fever for 3 days, SpO2 91%", de: "80M, zunehmender Husten und Fieber seit 3 Tagen, SpO2 91%" },
 
   "finding.none": { en: "No finding present", de: "Keiner der Befunde liegt vor" },
 };
 
 const TIME_TO_CASES: Record<number, number> = { 20: 10, 30: 15, 40: 20 };
-const BONUS_CASE_COUNT = 5;
 const STORAGE_PREFIX = "chexstudy_";
 
 function makeCode(): string {
@@ -618,13 +623,24 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const initializeBonusCases = useCallback(() => {
-    const bonus = generateCaseOrder((state.sessionIndex + 1) % 5, BONUS_CASE_COUNT);
-    setState(s => ({ ...s, bonusCases: bonus }));
-  }, [state.sessionIndex]);
+    setState(s => {
+      const bonus = generateBonusOrder(s.sessionCode);
+      // Track where main cases end so we know to skip block breaks for bonus
+      const mainCaseCount = s.activeCases.length;
+      return {
+        ...s,
+        bonusCases: bonus,
+        activeCases: [...s.activeCases, ...bonus],
+        mainCaseCount,
+      };
+    });
+  }, []);
 
   const addResponse = useCallback((r: CaseResponse) => {
     setState(s => {
-      const trialType = r.category === "attention_check" ? "attention_check" : "main";
+      const trialType = r.category === "attention_check" ? "attention_check"
+        : r.caseId.startsWith("bonus-") ? "bonus"
+        : "main";
       if (s.sessionCode) studyDataService.saveTrial(s.sessionCode, r, trialType);
       return { ...s, responses: [...s.responses, r] };
     });
@@ -669,18 +685,30 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
   const nextCase = useCallback(() => {
     setState(s => {
       const nextIndex = s.currentCaseIndex + 1;
-      const caseInBlock = nextIndex % s.casesPerBlock;
-      const newBlock = Math.floor(nextIndex / s.casesPerBlock) + 1;
+      const mainCount = s.mainCaseCount ?? s.activeCases.length;
+      const inBonusSection = nextIndex >= mainCount;
 
       if (nextIndex >= s.activeCases.length) {
+        // All cases done (including any bonus)
+        if (inBonusSection || s.bonusCases.length > 0) {
+          // Bonus was accepted and is now finished
+          return { ...s, currentCaseIndex: nextIndex, screen: "debrief" as Screen, phase: 1 as const };
+        }
+        // Main cases done, no bonus yet — offer it
         return { ...s, currentCaseIndex: nextIndex, screen: "bonus-offer" as Screen, phase: 1 as const };
       }
 
-      if (caseInBlock === 0 && nextIndex > 0) {
-        return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, screen: "block-break" as Screen, phase: 1 as const };
+      // Skip block breaks for bonus cases
+      if (!inBonusSection) {
+        const caseInBlock = nextIndex % s.casesPerBlock;
+        const newBlock = Math.floor(nextIndex / s.casesPerBlock) + 1;
+        if (caseInBlock === 0 && nextIndex > 0) {
+          return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, screen: "block-break" as Screen, phase: 1 as const };
+        }
+        return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, phase: 1 as const };
       }
 
-      return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, phase: 1 as const };
+      return { ...s, currentCaseIndex: nextIndex, phase: 1 as const };
     });
   }, []);
 

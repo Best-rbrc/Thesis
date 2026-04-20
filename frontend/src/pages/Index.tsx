@@ -11,7 +11,6 @@ import TutorialScreen from "@/screens/TutorialScreen";
 import TrialScreen from "@/screens/TrialScreen";
 import BlockBreakScreen from "@/screens/BlockBreakScreen";
 import BonusOfferScreen from "@/screens/BonusOfferScreen";
-import BonusRoundScreen from "@/screens/BonusRoundScreen";
 import DebriefScreen from "@/screens/DebriefScreen";
 import LanguageToggle from "@/components/LanguageToggle";
 
@@ -27,7 +26,6 @@ const screenComponent = (screen: string) => {
     case "trial": return <TrialScreen />;
     case "block-break": return <BlockBreakScreen />;
     case "bonus-offer": return <BonusOfferScreen />;
-    case "bonus-round": return <BonusRoundScreen />;
     case "debrief":
     case "complete": return <DebriefScreen />;
     default: return <LandingScreen />;

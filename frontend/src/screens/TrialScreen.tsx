@@ -16,7 +16,7 @@ const seenConditionsGlobal = new Set<string>();
 let lastSessionCode = "";
 
 const TrialScreen = () => {
-  const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, progress, currentBlock, language, t, sessionCode } = useStudy();
+  const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, mainCaseCount, progress, currentBlock, language, t, sessionCode } = useStudy();
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [revisedFindings, setRevisedFindings] = useState<string[]>([]);
@@ -191,7 +191,11 @@ const TrialScreen = () => {
       )}
 
       <SystemHeader
-        breadcrumb={`${t("trial.case")} ${currentCaseIndex + 1} / ${totalCases}`}
+        breadcrumb={
+          currentCaseIndex >= (mainCaseCount ?? totalCases)
+            ? `Bonus ${currentCaseIndex - (mainCaseCount ?? totalCases) + 1} / ${totalCases - (mainCaseCount ?? totalCases)}`
+            : `${t("trial.case")} ${currentCaseIndex + 1} / ${mainCaseCount ?? totalCases}`
+        }
         progress={progress}
         phaseLabel={phase === 1 ? t("trial.phase1") : t("trial.phase2")}
       />
@@ -407,7 +411,7 @@ const SliderField = ({ label, value, onChange, minLabel, maxLabel, error, errorM
         max={100}
         step={1}
         onValueChange={(vals) => onChange(vals[0] ?? 0)}
-        className="w-full"
+        className={`w-full ${value === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
       />
     {(minLabel || maxLabel) && (
       <div className="flex justify-between text-xs text-muted-foreground/60">

@@ -1,6 +1,6 @@
 import type { CaseData } from "@/data/mockData";
 
-export type Screen = "landing" | "consent" | "welcome" | "interface-tutorial" | "baseline" | "pre-survey" | "tutorial" | "trial" | "block-break" | "bonus-offer" | "bonus-round" | "debrief" | "complete";
+export type Screen = "landing" | "consent" | "welcome" | "interface-tutorial" | "baseline" | "pre-survey" | "tutorial" | "trial" | "block-break" | "bonus-offer" | "debrief" | "complete";
 export type Language = "en" | "de";
 
 export interface UserProfile {
@@ -72,6 +72,7 @@ export interface StudyState {
   activeCases: CaseData[];
   bonusCases: CaseData[];
   casesPerBlock: number;
+  mainCaseCount?: number;
   sessionIndex: number;
   jianItemOrder: number[];
 }

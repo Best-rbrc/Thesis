@@ -29,7 +29,6 @@ export interface CaseMetadata {
 
 export interface CaseOverlays {
   gradcam: Record<string, string>;
-  intgrad: Record<string, string>;
 }
 
 export interface CaseData {
@@ -59,7 +58,6 @@ const STUDY_FINDINGS = ["cardiomegaly", "edema", "consolidation", "atelectasis",
 
 const makeOverlays = (prefix: string): CaseOverlays => ({
   gradcam: Object.fromEntries(STUDY_FINDINGS.map(f => [f, `/cases/${prefix}_gradcam_${f}.png`])),
-  intgrad: Object.fromEntries(STUDY_FINDINGS.map(f => [f, `/cases/${prefix}_intgrad_${f}.png`])),
 });
 
 const makePreds = (c: number, e: number, co: number, a: number, p: number, pn: number): AIPrediction[] => [
@@ -237,6 +235,49 @@ const IMG = {
     preds: makePreds(7, 2, 23, 13, 9, 17),      // GT: normal; all low (≤23%)
     gt: [] as string[],
     meta: { age: 33, sex: "M", view: "PA" as const },
+  },
+
+  // ---- BONUS ROUND IMAGES (5 new patients, no overlap with main study) ----
+
+  // Easy — cardiomegaly
+  p25997: {
+    url: "/cases/patient25997_study4_view1_frontal.jpg",
+    overlays: makeOverlays("patient25997_study4_view1_frontal"),
+    preds: makePreds(87, 49, 10, 25, 5, 17),    // GT: cardiomegaly; clean easy case
+    gt: ["cardiomegaly"],
+    meta: { age: 55, sex: "M", view: "AP" as const },
+  },
+  // Hard — all 5 findings, model mostly correct
+  p10140: {
+    url: "/cases/patient10140_study35_view1_frontal.jpg",
+    overlays: makeOverlays("patient10140_study35_view1_frontal"),
+    preds: makePreds(93, 76, 59, 65, 60, 3),    // GT: all 5; all detected
+    gt: ["cardiomegaly", "edema", "consolidation", "atelectasis", "pleural_effusion"],
+    meta: { age: 71, sex: "F", view: "AP" as const },
+  },
+  // Incidental — ptx strongly flagged by AI (99%)
+  p15482: {
+    url: "/cases/patient15482_study42_view1_frontal.jpg",
+    overlays: makeOverlays("patient15482_study42_view1_frontal"),
+    preds: makePreds(52, 16, 37, 62, 53, 99),   // GT: cMeg+edema+atel+eff+ptx; ptx 99%
+    gt: ["cardiomegaly", "edema", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 61, sex: "F", view: "AP" as const },
+  },
+  // AI-wrong — normal with effusion FP (88%)
+  p00023: {
+    url: "/cases/patient00023_study5_view1_frontal.jpg",
+    overlays: makeOverlays("patient00023_study5_view1_frontal"),
+    preds: makePreds(4, 5, 9, 10, 88, 11),      // GT: normal; effusion 88% FP
+    gt: [] as string[],
+    meta: { age: 63, sex: "M", view: "PA" as const },
+  },
+  // Incidental — ptx moderately detected (69%)
+  p41170: {
+    url: "/cases/patient41170_study2_view1_frontal.jpg",
+    overlays: makeOverlays("patient41170_study2_view1_frontal"),
+    preds: makePreds(2, 54, 57, 71, 55, 69),    // GT: edema+consol+atel+eff+ptx; no cMeg
+    gt: ["edema", "consolidation", "atelectasis", "pleural_effusion", "pneumothorax"],
+    meta: { age: 80, sex: "M", view: "AP" as const },
   },
 };
 
@@ -702,6 +743,60 @@ const FIXED_20: CaseData[] = [
   // Block 5 extension — AI-wrong clean true negative
   mk("fx-20", IMG.p00005s1, "ai_wrong", [], [], [],                                      "context.fx20"),
 ];
+
+// ---------------------------------------------------------------------------
+// BONUS_POOL — 5 fixed cases using NEW patients (no overlap with main study).
+// Each case has a fixed condition assignment (A–E). The order is shuffled
+// per session via generateBonusOrder().
+// ---------------------------------------------------------------------------
+export const BONUS_POOL: CaseData[] = [
+  // Condition A (no AI) — easy cardiomegaly
+  mk("bonus-01", IMG.p25997, "easy",
+     ["cardiomegaly"], ["cardiomegaly"], [],
+     "context.bonus01"),
+  // Condition B (AI predictions) — hard multi-finding
+  mk("bonus-02", IMG.p10140, "hard",
+     ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
+     ["cardiomegaly","edema"], ["consolidation","atelectasis","pleural_effusion"],
+     "context.bonus02"),
+  // Condition C (AI + heatmaps) — incidental ptx, AI strongly flags
+  mk("bonus-03", IMG.p15482, "incidental",
+     ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
+     ["atelectasis","pleural_effusion"], ["pneumothorax","cardiomegaly","edema"],
+     "context.bonus03"),
+  // Condition D (AI + heatmaps + bias) — AI-wrong, effusion FP
+  mk("bonus-04", IMG.p00023, "ai_wrong", [], [], [],
+     "context.bonus04",
+     "\u26A0 PA image \u00B7 Male, 63 \u00B7 AI may produce false positives for pleural effusion on this projection"),
+  // Condition E (heatmaps only) — incidental ptx, moderate AI detection
+  mk("bonus-05", IMG.p41170, "incidental",
+     ["edema","consolidation","atelectasis","pleural_effusion","pneumothorax"],
+     ["edema","consolidation"], ["pneumothorax","atelectasis","pleural_effusion"],
+     "context.bonus05"),
+];
+
+// Assign fixed conditions A–E to the 5 bonus cases, then apply them.
+function applyBonusConditions(cases: CaseData[]): CaseData[] {
+  const conditions: StudyCondition[] = ["A", "B", "C", "D", "E"];
+  return cases.map((c, i) => ({ ...c, condition: conditions[i] }));
+}
+
+// Generate bonus case order: same 5 cases for everyone, shuffled per session.
+export function generateBonusOrder(sessionCode: string): CaseData[] {
+  const withConditions = applyBonusConditions([...BONUS_POOL]);
+  // Seeded shuffle so the order is deterministic per session but varies across sessions
+  let hash = 0;
+  for (let i = 0; i < sessionCode.length; i++) {
+    hash = ((hash << 5) - hash + sessionCode.charCodeAt(i)) | 0;
+  }
+  const result = [...withConditions];
+  for (let i = result.length - 1; i > 0; i--) {
+    hash = ((hash << 5) - hash + i) | 0;
+    const j = Math.abs(hash) % (i + 1);
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // generateCaseOrder — fixed-set Latin-square assignment.

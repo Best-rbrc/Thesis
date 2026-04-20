@@ -99,7 +99,7 @@ const NasaSlider = ({ label, value, onChange, error, errorMessage }: { label: st
       max={20}
       step={1}
       onValueChange={(vals) => onChange(vals[0] ?? 0)}
-      className="w-full"
+      className={`w-full ${value === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
     />
     {error && errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
   </div>
