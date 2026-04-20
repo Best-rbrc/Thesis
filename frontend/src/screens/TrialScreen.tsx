@@ -403,7 +403,7 @@ const SliderField = ({ label, value, onChange, minLabel, maxLabel, error, errorM
   <div className={`space-y-2 ${error ? "rounded border border-destructive/50 p-2" : ""}`}>
     <div className="flex items-center justify-between">
       <label className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</label>
-      <span className="text-sm text-primary font-mono font-medium">{value === null ? "—" : `${value}%`}</span>
+      <span className="text-sm text-primary font-mono font-medium">{value === null ? "— / 100%" : `${value}%`}</span>
     </div>
       <Slider
         value={[value ?? 50]}
@@ -411,7 +411,7 @@ const SliderField = ({ label, value, onChange, minLabel, maxLabel, error, errorM
         max={100}
         step={1}
         onValueChange={(vals) => onChange(vals[0] ?? 0)}
-        className={`w-full ${value === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
+        className="w-full"
       />
     {(minLabel || maxLabel) && (
       <div className="flex justify-between text-xs text-muted-foreground/60">

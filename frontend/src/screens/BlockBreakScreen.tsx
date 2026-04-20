@@ -91,7 +91,7 @@ const NasaSlider = ({ label, value, onChange, error, errorMessage }: { label: st
   <div className={`space-y-2 ${error ? "rounded border border-destructive/50 p-2" : ""}`} data-error={error ? "true" : undefined}>
     <div className="flex items-center justify-between">
       <label className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</label>
-      <span className="text-sm text-primary font-mono font-medium">{value === null ? "—" : `${value}/20`}</span>
+      <span className="text-sm text-primary font-mono font-medium">{value === null ? "— / 20" : `${value}/20`}</span>
     </div>
     <Slider
       value={[value ?? 10]}
@@ -99,7 +99,7 @@ const NasaSlider = ({ label, value, onChange, error, errorMessage }: { label: st
       max={20}
       step={1}
       onValueChange={(vals) => onChange(vals[0] ?? 0)}
-      className={`w-full ${value === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
+      className="w-full"
     />
     {error && errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
   </div>

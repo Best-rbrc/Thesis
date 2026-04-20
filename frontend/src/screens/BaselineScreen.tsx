@@ -118,7 +118,7 @@ const BaselineScreen = () => {
           <div className={`space-y-2 ${showErrors && confidence === null ? "rounded border border-destructive/50 p-2" : ""}`}>
             <div className="flex items-center justify-between">
               <label className={`text-xs font-semibold uppercase tracking-wider ${showErrors && confidence === null ? "text-destructive" : "text-muted-foreground"}`}>{t("trial.confidence")}</label>
-              <span className="text-sm text-primary font-mono font-medium">{confidence === null ? "—" : `${confidence}%`}</span>
+              <span className="text-sm text-primary font-mono font-medium">{confidence === null ? "— / 100%" : `${confidence}%`}</span>
             </div>
             <Slider
               value={[confidence ?? 50]}
@@ -127,7 +127,7 @@ const BaselineScreen = () => {
               step={1}
               disabled={submitted}
               onValueChange={(vals) => !submitted && setConfidence(vals[0] ?? 0)}
-              className={`w-full ${confidence === null ? "[&_[role=slider]]:opacity-0 [&_[data-orientation=horizontal]>span:first-child]:opacity-0" : ""}`}
+              className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground/60">
               <span>{t("trial.notConfident")}</span>
