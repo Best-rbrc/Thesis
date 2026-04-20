@@ -99,28 +99,103 @@ Condition explainer modal appears when condition changes.
 
 ## 6) Case and Block Assignment (Current Logic)
 
+### Overall design: Within-subjects with Latin square counterbalancing
+
+The study uses a **within-subjects design** — every participant experiences all 5 conditions (A–E). To control for confounds, a **balanced Latin square** determines which condition is applied to which block of cases.
+
+**Key principle:** All participants who select the same time budget see the **exact same cases in the exact same order**. The only thing that changes between participants is **which condition each block of cases is shown under**.
+
+This is the standard counterbalancing approach for within-subjects experiments in HCI and medical decision-making research. It ensures that observed differences between conditions cannot be attributed to differences in case difficulty or case ordering.
+
+### Why counterbalancing is necessary
+
+Without counterbalancing, a fixed case→condition mapping (e.g., "case fx-01 is always shown with no AI") would introduce a **confound between case difficulty and condition**. If easy cases happened to be assigned to the AI condition and hard cases to the no-AI condition, any observed accuracy difference could reflect case difficulty rather than the effect of AI assistance. The Latin square rotation ensures that, across participants, every case is seen under every condition, allowing the analysis to separate condition effects from case-level variance.
+
+Additionally, the Latin square controls for **order effects** (learning and fatigue). Because conditions rotate positions across participants, no single condition is systematically advantaged or disadvantaged by always appearing early or late in the study.
+
 ### Time budget mapping
+
 Configured mapping in code (values are multiples of 5 for clean Latin-square allocation):
-- 10 min -> `n_cases = 10`
-- 20 min -> `n_cases = 15`
-- 30 min -> `n_cases = 20`
+- 20 min → `n_cases = 10`
+- 30 min → `n_cases = 15`
+- 40 min → `n_cases = 20`
+
+### Fixed case sets
+
+All participants within the same time tier see the same fixed set of cases. Longer tiers are strict supersets:
+
+| Tier | Cases | Set |
+|---|---|---|
+| 20 min | 10 cases (2 per block) | `FIXED_10` |
+| 30 min | 15 cases (3 per block) | `FIXED_15` = `FIXED_10` + 5 additional |
+| 40 min | 20 cases (4 per block) | `FIXED_20` = `FIXED_15` + 5 additional |
+
+Case ordering within each fixed set is deterministic — it does **not** vary between participants. The cases are arranged to distribute category types (easy, hard, incidental, ai_wrong) across blocks:
+
+**FIXED_10 block layout:**
+
+| Block | Cases | Categories |
+|---|---|---|
+| Block 1 | fx-01, fx-02 | easy, easy |
+| Block 2 | fx-03, fx-04 | hard, hard |
+| Block 3 | fx-05, fx-06 | incidental, incidental |
+| Block 4 | fx-07, fx-08 | easy, hard |
+| Block 5 | fx-09, fx-10 | ai_wrong, ai_wrong |
+
+### Latin square condition rotation
+
+Each participant receives a `sessionIndex` (0–4), deterministically derived from their 6-character session code via a hash function (`codeToSessionIndex`). This index selects one row of the 5×5 Latin square:
+
+| sessionIndex | Block 1 | Block 2 | Block 3 | Block 4 | Block 5 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0 | A | B | C | D | E |
+| 1 | B | C | D | E | A |
+| 2 | C | D | E | A | B |
+| 3 | D | E | A | B | C |
+| 4 | E | A | B | C | D |
+
+**Concrete example (FIXED_10, Block 1 — cases fx-01 and fx-02):**
+
+| Participant sessionIndex | Condition for fx-01 & fx-02 |
+|:---:|:---|
+| 0 | **A** — No AI assistance |
+| 1 | **B** — AI prediction bars |
+| 2 | **C** — AI predictions + heatmaps |
+| 3 | **D** — AI + heatmaps + bias warnings |
+| 4 | **E** — Heatmaps only |
+
+This means the same case (e.g., fx-01, an easy edema case) is evaluated without AI by some participants and with full AI+heatmaps+bias by others. Across all participants, every case appears under each of the 5 conditions with roughly equal frequency (~20% per condition, assuming uniform session code distribution).
 
 ### Main-case generation
-`generateCaseOrder(sessionIndex, nCases)` currently:
-- uses 5-condition Latin-square order (`A..E`)
-- computes `casesPerCondition = floor(nCases / 5)`
-- assigns that many cases per condition
-- then inserts one attention-check case into middle 60%
 
-### Block size
-- `casesPerBlock = floor(nCases / 4)`
-- block transitions happen after every `casesPerBlock` submitted cases
+`generateCaseOrder(sessionIndex, nCases)` performs the following:
+1. Selects the appropriate fixed pool (`FIXED_10`, `FIXED_15`, or `FIXED_20`) based on `nCases`
+2. Looks up the Latin square row for the given `sessionIndex`
+3. Computes `casesPerBlock = floor(pool.length / 5)`
+4. Assigns each case the condition from its block: `condition = conditionOrder[floor(i / casesPerBlock)]`
+5. Returns the full case list with conditions applied
+
+After `generateCaseOrder`, one attention-check case is inserted at a deterministic position (within the 20%–80% range, derived from the session code).
+
+### Block size and transitions
+- `casesPerBlock = floor(nCases / 5)`
+- Block-break survey screens appear after every `casesPerBlock` completed cases
+- 5 blocks total, aligned with the 5 Latin square conditions
 
 ### Important implementation implications
+
 With `floor(nCases / 5)` and `nCases` always a multiple of 5:
-- 10-min path (`n_cases=10`) -> 10 main (2 per condition) + 1 attention check = 11 displayed trial cases
-- 20-min path (`n_cases=15`) -> 15 main (3 per condition) + 1 attention check = 16 displayed trial cases
-- 30-min path (`n_cases=20`) -> 20 main (4 per condition) + 1 attention check = 21 displayed trial cases
+- 20-min path (`n_cases=10`) → 10 main (2 per condition) + 1 attention check = 11 displayed trial cases
+- 30-min path (`n_cases=15`) → 15 main (3 per condition) + 1 attention check = 16 displayed trial cases
+- 40-min path (`n_cases=20`) → 20 main (4 per condition) + 1 attention check = 21 displayed trial cases
+
+### Analytical implications
+
+The counterbalanced design enables the following analytical approaches:
+- **Mixed-effects models** with participant and case as random effects, condition as fixed effect — the standard approach for within-subjects designs with counterbalancing
+- **Within-participant comparisons** across conditions (each participant provides data for all 5 conditions)
+- **Cross-participant comparisons** for the same case under different conditions (each case is seen under all 5 conditions across the full participant pool)
+- Case difficulty and participant ability are controlled for by the random effects structure, isolating the true condition effect
 
 ## 7) Data Persistence Model (Supabase)
 

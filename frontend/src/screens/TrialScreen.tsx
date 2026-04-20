@@ -18,9 +18,9 @@ let lastSessionCode = "";
 const TrialScreen = () => {
   const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, progress, currentBlock, language, t, sessionCode } = useStudy();
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
-  const [confidence, setConfidence] = useState(50);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [revisedFindings, setRevisedFindings] = useState<string[]>([]);
-  const [revisedConfidence, setRevisedConfidence] = useState(50);
+  const [revisedConfidence, setRevisedConfidence] = useState<number | null>(null);
   /** Unset until the participant rates AI helpfulness (sliders default to 50 would otherwise skip intent). */
   const [aiHelpful, setAiHelpful] = useState<number | null>(null);
   const [overlayView, setOverlayView] = useState<OverlayView>("original");
@@ -75,6 +75,7 @@ const TrialScreen = () => {
 
   const phase2FormComplete =
     revisedFindings.length > 0 &&
+    revisedConfidence !== null &&
     aiHelpful !== null &&
     (!showExplanations || (xaiFaithful != null && xaiHelpful != null)) &&
     (!showAI || changedMind !== null);
@@ -85,8 +86,15 @@ const TrialScreen = () => {
   const missingXaiHelpful = showPhase2Errors && showExplanations && xaiHelpful === null;
   const missingChangedMind = showPhase2Errors && showAI && changedMind === null;
 
+  const [showPhase1Errors, setShowPhase1Errors] = useState(false);
+  const missingConfidence = showPhase1Errors && confidence === null;
+
   const handleLockIn = () => {
     if (isSubmitting) return;
+    if (confidence === null) {
+      setShowPhase1Errors(true);
+      return;
+    }
     setIsSubmitting(true);
     if (isControl) {
       addResponse({
@@ -98,7 +106,7 @@ const TrialScreen = () => {
       resetAndNext();
     } else {
       setRevisedFindings([...selectedFindings]);
-      setRevisedConfidence(confidence);
+      setRevisedConfidence(null);
       setShowPhase2Errors(false);
       phase2StartTime.current = Date.now();
       if (showBias) bannerShowTime.current = Date.now();
@@ -126,8 +134,8 @@ const TrialScreen = () => {
     addResponse({
       caseId: currentCase.id, condition: currentCase.condition, category: currentCase.category,
       groundTruth: currentCase.groundTruth, aiPredictions: currentCase.aiPredictions,
-      initialFindings: normalizedInitialFindings, initialConfidence: confidence,
-      revisedFindings: normalizedRevisedFindings, revisedConfidence, aiHelpful: aiHelpful!,
+      initialFindings: normalizedInitialFindings, initialConfidence: confidence!,
+      revisedFindings: normalizedRevisedFindings, revisedConfidence: revisedConfidence!, aiHelpful: aiHelpful!,
       xaiHelpful: showExplanations ? (xaiHelpful as any) : undefined,
       xaiFaithful: showExplanations ? (xaiFaithful as any) : undefined,
       xaiViewSelected: showExplanations ? overlayView : undefined,
@@ -140,10 +148,10 @@ const TrialScreen = () => {
   };
 
   const resetAndNext = () => {
-    setSelectedFindings([]); setConfidence(50); setRevisedFindings([]); setRevisedConfidence(50);
+    setSelectedFindings([]); setConfidence(null); setRevisedFindings([]); setRevisedConfidence(null);
     setAiHelpful(null); setOverlayView("original"); setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
     setXaiFaithful(null); setXaiHelpful(null); setChangedMind(null);
-    setShowPhase2Errors(false);
+    setShowPhase1Errors(false); setShowPhase2Errors(false);
     startTime.current = Date.now(); phase2StartTime.current = null; bannerShowTime.current = null;
     setIsSubmitting(false);
     nextCase();
@@ -290,7 +298,7 @@ const TrialScreen = () => {
                   </div>
                 </div>
               </div>
-              <SliderField label={t("trial.confidence")} value={confidence} onChange={setConfidence} minLabel={t("trial.notConfident")} maxLabel={t("trial.veryConfident")} />
+              <SliderField label={t("trial.confidence")} value={confidence} onChange={setConfidence} minLabel={t("trial.notConfident")} maxLabel={t("trial.veryConfident")} error={missingConfidence} errorMessage={requiredMessage} />
               <Button onClick={handleLockIn} disabled={selectedFindings.length === 0 || isSubmitting} className="w-full h-10 rounded text-sm">
                 <Lock className="w-4 h-4 mr-2" />
                 {isControl ? t("trial.submitAnswer") : t("trial.lockIn")}
@@ -330,7 +338,7 @@ const TrialScreen = () => {
                 {missingRevisedFindings && <p className="mt-2 text-xs text-destructive">{requiredMessage}</p>}
               </div>
 
-              <SliderField label={t("trial.revisedConfidence")} value={revisedConfidence} onChange={setRevisedConfidence} />
+              <SliderField label={t("trial.revisedConfidence")} value={revisedConfidence} onChange={setRevisedConfidence} error={showPhase2Errors && revisedConfidence === null} errorMessage={requiredMessage} />
               <SliderField
                 label={t("trial.aiHelpful")}
                 value={aiHelpful}

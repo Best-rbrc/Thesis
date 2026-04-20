@@ -13,9 +13,10 @@ const BaselineScreen = () => {
   const { baselineCases, addBaselineResponse, setBaselineAccuracy, setScreen, t } = useStudy();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
-  const [confidence, setConfidence] = useState(50);
+  const [confidence, setConfidence] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
   const startTime = useRef(Date.now());
   const correctCounts = useRef(0);
   const totalLabels = useRef(0);
@@ -36,6 +37,10 @@ const BaselineScreen = () => {
 
   const handleSubmit = () => {
     if (isSubmitting) return;
+    if (confidence === null) {
+      setShowErrors(true);
+      return;
+    }
     setIsSubmitting(true);
     addBaselineResponse({
       caseId: currentCase.id, condition: "A", category: "baseline",
@@ -61,8 +66,9 @@ const BaselineScreen = () => {
     } else {
       setCurrentIdx(prev => prev + 1);
       setSelectedFindings([]);
-      setConfidence(50);
+      setConfidence(null);
       setSubmitted(false);
+      setShowErrors(false);
       startTime.current = Date.now();
     }
   };
@@ -109,13 +115,13 @@ const BaselineScreen = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className={`space-y-2 ${showErrors && confidence === null ? "rounded border border-destructive/50 p-2" : ""}`}>
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("trial.confidence")}</label>
-              <span className="text-sm text-primary font-mono font-medium">{confidence}%</span>
+              <label className={`text-xs font-semibold uppercase tracking-wider ${showErrors && confidence === null ? "text-destructive" : "text-muted-foreground"}`}>{t("trial.confidence")}</label>
+              <span className="text-sm text-primary font-mono font-medium">{confidence === null ? "—" : `${confidence}%`}</span>
             </div>
             <Slider
-              value={[confidence]}
+              value={[confidence ?? 50]}
               min={0}
               max={100}
               step={1}
@@ -127,6 +133,7 @@ const BaselineScreen = () => {
               <span>{t("trial.notConfident")}</span>
               <span>{t("trial.veryConfident")}</span>
             </div>
+            {showErrors && confidence === null && <p className="text-xs text-destructive">{t("trial.confidence") === "Deine Sicherheit:" ? "Bitte beantworten." : "Please answer this question."}</p>}
           </div>
 
           {!submitted ? (

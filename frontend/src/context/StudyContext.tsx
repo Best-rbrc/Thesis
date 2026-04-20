@@ -189,7 +189,7 @@ const translations: Record<string, Record<Language, string>> = {
   "ifTutorial.step1.body": { en: "For each X-ray, tick the findings you think are present. If the image looks normal, select \"No Finding\" at the bottom of the list.", de: "Markiere für jedes Röntgenbild die Befunde, die du für vorhanden hältst. Sieht das Bild unauffällig aus, wähle unten in der Liste \"Kein Befund\"." },
   "ifTutorial.step1.noFinding": { en: "No Finding", de: "Kein Befund" },
   "ifTutorial.step2.title": { en: "Rating Your Confidence", de: "Sicherheit einschätzen" },
-  "ifTutorial.step2.body": { en: "After selecting findings, use the slider to rate how confident you are — 0 means completely uncertain, 100 means completely certain.", de: "Nachdem du Befunde ausgewählt hast, gib mit dem Schieberegler an, wie sicher du dir bist – 0 bedeutet völlig unsicher, 100 bedeutet völlig sicher." },
+  "ifTutorial.step2.body": { en: "After selecting findings, use the slider to rate how confident you are. 0 means completely uncertain, 100 means completely certain.", de: "Nachdem du Befunde ausgewählt hast, gib mit dem Schieberegler an, wie sicher du dir bist. 0 bedeutet völlig unsicher, 100 bedeutet völlig sicher." },
   "ifTutorial.step2.label": { en: "Confidence", de: "Sicherheit" },
   "ifTutorial.cta": { en: "Start Practice Cases", de: "Übungsfälle starten" },
   "ifTutorial.hint": { en: "These 4 practice cases have no AI assistance — they capture your baseline performance.", de: "Diese 4 Übungsfälle enthalten keine KI-Unterstützung – sie erfassen deine Ausgangsleistung." },
