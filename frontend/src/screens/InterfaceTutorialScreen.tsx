@@ -254,7 +254,7 @@ const InterfaceTutorialScreen = () => {
     <div className="min-h-screen flex flex-col bg-background">
       <SystemHeader
         breadcrumb={t("ifTutorial.breadcrumb")}
-        showFindingsButton={step >= 1}
+        showFindingsButton={true}
         rightContent={
           <div className="flex items-center gap-1">
             {steps.map((_, i) => (
