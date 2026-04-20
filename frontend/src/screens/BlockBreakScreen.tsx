@@ -7,14 +7,14 @@ import { Slider } from "@/components/ui/slider";
 const BlockBreakScreen = () => {
   const { currentBlock, setScreen, addBlockSurvey, t, language } = useStudy();
   const blockJustCompleted = currentBlock - 1;
-  const [nasaMental, setNasaMental] = useState(10);
-  const [nasaTime, setNasaTime] = useState(10);
-  const [nasaFrustration, setNasaFrustration] = useState(10);
+  const [nasaMental, setNasaMental] = useState<number | null>(null);
+  const [nasaTime, setNasaTime] = useState<number | null>(null);
+  const [nasaFrustration, setNasaFrustration] = useState<number | null>(null);
   const [trustPulse, setTrustPulse] = useState<number | null>(null);
   const [showErrors, setShowErrors] = useState(false);
 
   const handleContinue = () => {
-    if (trustPulse === null) {
+    if (nasaMental === null || nasaTime === null || nasaFrustration === null || trustPulse === null) {
       setShowErrors(true);
       setTimeout(() => {
         document.querySelector("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -25,6 +25,10 @@ const BlockBreakScreen = () => {
     setScreen("trial");
   };
 
+  const requiredMessage = language === "en" ? "Please select a rating." : "Bitte eine Bewertung auswählen.";
+  const mentalError = showErrors && nasaMental === null;
+  const timeError = showErrors && nasaTime === null;
+  const frustrationError = showErrors && nasaFrustration === null;
   const trustError = showErrors && trustPulse === null;
 
   return (
@@ -41,9 +45,9 @@ const BlockBreakScreen = () => {
           </div>
 
           <div className="space-y-4">
-            <NasaSlider label={t("break.mentalEffort")} value={nasaMental} onChange={setNasaMental} />
-            <NasaSlider label={t("break.timePressure")} value={nasaTime} onChange={setNasaTime} />
-            <NasaSlider label={t("break.frustration")} value={nasaFrustration} onChange={setNasaFrustration} />
+            <NasaSlider label={t("break.mentalEffort")} value={nasaMental} onChange={setNasaMental} error={mentalError} errorMessage={requiredMessage} />
+            <NasaSlider label={t("break.timePressure")} value={nasaTime} onChange={setNasaTime} error={timeError} errorMessage={requiredMessage} />
+            <NasaSlider label={t("break.frustration")} value={nasaFrustration} onChange={setNasaFrustration} error={frustrationError} errorMessage={requiredMessage} />
 
             <div className="space-y-2 pt-3 border-t border-border" data-error={trustError ? "true" : undefined}>
               <p className={`text-xs font-semibold uppercase tracking-wider ${trustError ? "text-destructive" : "text-muted-foreground"}`}>
@@ -68,7 +72,7 @@ const BlockBreakScreen = () => {
               </div>
               {trustError && (
                 <p className="text-xs text-destructive">
-                  {language === "en" ? "Please select a rating." : "Bitte eine Bewertung auswählen."}
+                  {requiredMessage}
                 </p>
               )}
             </div>
@@ -83,20 +87,21 @@ const BlockBreakScreen = () => {
   );
 };
 
-const NasaSlider = ({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) => (
-  <div className="space-y-2">
+const NasaSlider = ({ label, value, onChange, error, errorMessage }: { label: string; value: number | null; onChange: (v: number) => void; error?: boolean; errorMessage?: string }) => (
+  <div className={`space-y-2 ${error ? "rounded border border-destructive/50 p-2" : ""}`} data-error={error ? "true" : undefined}>
     <div className="flex items-center justify-between">
-      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
-      <span className="text-sm text-primary font-mono font-medium">{value}/20</span>
+      <label className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</label>
+      <span className="text-sm text-primary font-mono font-medium">{value === null ? "—" : `${value}/20`}</span>
     </div>
     <Slider
-      value={[value]}
+      value={[value ?? 10]}
       min={0}
       max={20}
       step={1}
       onValueChange={(vals) => onChange(vals[0] ?? 0)}
       className="w-full"
     />
+    {error && errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
   </div>
 );
 

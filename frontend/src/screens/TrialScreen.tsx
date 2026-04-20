@@ -11,11 +11,12 @@ type OverlayView = "original" | "gradcam";
 const NO_FINDING_ID = "__no_finding__";
 
 // Module-level set so it survives TrialScreen unmount/remount (e.g. block breaks).
-// Cleared on page reload, which is the correct behaviour for a fresh session.
+// Reset whenever the session code changes so a new session always shows all modals.
 const seenConditionsGlobal = new Set<string>();
+let lastSessionCode = "";
 
 const TrialScreen = () => {
-  const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, progress, currentBlock, t } = useStudy();
+  const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, progress, currentBlock, language, t, sessionCode } = useStudy();
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [confidence, setConfidence] = useState(50);
   const [revisedFindings, setRevisedFindings] = useState<string[]>([]);
@@ -28,6 +29,7 @@ const TrialScreen = () => {
   const [xaiFaithful, setXaiFaithful] = useState<string | null>(null);
   const [xaiHelpful, setXaiHelpful] = useState<string | null>(null);
   const [changedMind, setChangedMind] = useState<boolean | null>(null);
+  const [showPhase2Errors, setShowPhase2Errors] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTime = useRef(Date.now());
   const phase2StartTime = useRef<number | null>(null);
@@ -44,12 +46,17 @@ const TrialScreen = () => {
   // Show condition info modal only the first time each condition is encountered.
   // Skip for attention-check cases — they have a hardcoded condition that may
   // differ from the surrounding block.
+  // Clear the cache when a new session starts (same tab, different code).
   useEffect(() => {
+    if (sessionCode && sessionCode !== lastSessionCode) {
+      seenConditionsGlobal.clear();
+      lastSessionCode = sessionCode;
+    }
     if (currentCase && !currentCase.isAttentionCheck && !seenConditions.current.has(currentCase.condition)) {
       seenConditions.current.add(currentCase.condition);
       setShowConditionInfo(true);
     }
-  }, [currentCase]);
+  }, [currentCase, sessionCode]);
 
 
   if (!currentCase) return null;
@@ -71,6 +78,12 @@ const TrialScreen = () => {
     aiHelpful !== null &&
     (!showExplanations || (xaiFaithful != null && xaiHelpful != null)) &&
     (!showAI || changedMind !== null);
+  const requiredMessage = language === "de" ? "Bitte beantworten." : "Please answer this question.";
+  const missingRevisedFindings = showPhase2Errors && revisedFindings.length === 0;
+  const missingAiHelpful = showPhase2Errors && aiHelpful === null;
+  const missingXaiFaithful = showPhase2Errors && showExplanations && xaiFaithful === null;
+  const missingXaiHelpful = showPhase2Errors && showExplanations && xaiHelpful === null;
+  const missingChangedMind = showPhase2Errors && showAI && changedMind === null;
 
   const handleLockIn = () => {
     if (isSubmitting) return;
@@ -86,6 +99,7 @@ const TrialScreen = () => {
     } else {
       setRevisedFindings([...selectedFindings]);
       setRevisedConfidence(confidence);
+      setShowPhase2Errors(false);
       phase2StartTime.current = Date.now();
       if (showBias) bannerShowTime.current = Date.now();
       if (showAIPredictions) {
@@ -101,7 +115,11 @@ const TrialScreen = () => {
   };
 
   const handleSubmit = () => {
-    if (isSubmitting || !phase2FormComplete) return;
+    if (isSubmitting) return;
+    if (!phase2FormComplete) {
+      setShowPhase2Errors(true);
+      return;
+    }
     setIsSubmitting(true);
     const responseTimePostMs = phase2StartTime.current ? Date.now() - phase2StartTime.current : undefined;
     const timeOnBannerMs = showBias && bannerShowTime.current && biasAcknowledged ? Date.now() - bannerShowTime.current : undefined;
@@ -125,6 +143,7 @@ const TrialScreen = () => {
     setSelectedFindings([]); setConfidence(50); setRevisedFindings([]); setRevisedConfidence(50);
     setAiHelpful(null); setOverlayView("original"); setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
     setXaiFaithful(null); setXaiHelpful(null); setChangedMind(null);
+    setShowPhase2Errors(false);
     startTime.current = Date.now(); phase2StartTime.current = null; bannerShowTime.current = null;
     setIsSubmitting(false);
     nextCase();
@@ -298,8 +317,8 @@ const TrialScreen = () => {
                 </div>
               )}
 
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("trial.revise")}</h3>
+              <div className={`rounded ${missingRevisedFindings ? "border border-destructive/50 p-2" : ""}`}>
+                <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${missingRevisedFindings ? "text-destructive" : "text-muted-foreground"}`}>{t("trial.revise")}</h3>
                 <div className="space-y-2">
                   {FINDINGS.map(f => (
                     <StudyCheckbox key={f.id} checked={revisedFindings.includes(f.id)} onChange={() => toggleFinding(f.id, true)} label={t(`finding.${f.id}`)} />
@@ -308,23 +327,56 @@ const TrialScreen = () => {
                     <StudyCheckbox checked={revisedFindings.includes(NO_FINDING_ID)} onChange={() => toggleFinding(NO_FINDING_ID, true)} label={t("finding.none")} />
                   </div>
                 </div>
+                {missingRevisedFindings && <p className="mt-2 text-xs text-destructive">{requiredMessage}</p>}
               </div>
 
               <SliderField label={t("trial.revisedConfidence")} value={revisedConfidence} onChange={setRevisedConfidence} />
-              <SliderField label={t("trial.aiHelpful")} value={aiHelpful} onChange={setAiHelpful} minLabel={t("trial.notAtAll")} maxLabel={t("trial.veryHelpful")} />
+              <SliderField
+                label={t("trial.aiHelpful")}
+                value={aiHelpful}
+                onChange={setAiHelpful}
+                minLabel={t("trial.notAtAll")}
+                maxLabel={t("trial.veryHelpful")}
+                error={missingAiHelpful}
+                errorMessage={requiredMessage}
+              />
 
               {showExplanations && (
                 <>
-                  <ToggleGroup label={t("trial.xaiFaithful")} value={xaiFaithful} options={["yes", "partially", "no", "unsure"]} labelFn={o => t(`trial.xaiFaithful.${o}`)} onChange={setXaiFaithful} />
-                  <ToggleGroup label={t("trial.xaiHelpful")} value={xaiHelpful} options={["helped", "neutral", "misleading"]} labelFn={o => t(`trial.xaiHelpful.${o}`)} onChange={setXaiHelpful} />
+                  <ToggleGroup
+                    label={t("trial.xaiFaithful")}
+                    value={xaiFaithful}
+                    options={["yes", "partially", "no", "unsure"]}
+                    labelFn={o => t(`trial.xaiFaithful.${o}`)}
+                    onChange={setXaiFaithful}
+                    error={missingXaiFaithful}
+                    errorMessage={requiredMessage}
+                  />
+                  <ToggleGroup
+                    label={t("trial.xaiHelpful")}
+                    value={xaiHelpful}
+                    options={["helped", "neutral", "misleading"]}
+                    labelFn={o => t(`trial.xaiHelpful.${o}`)}
+                    onChange={setXaiHelpful}
+                    error={missingXaiHelpful}
+                    errorMessage={requiredMessage}
+                  />
                 </>
               )}
 
               {showAI && (
-                <ToggleGroup label={t("trial.changedMind")} value={changedMind === null ? null : String(changedMind)} options={["true", "false"]} labelFn={o => o === "true" ? t("trial.yes") : t("trial.no")} onChange={v => setChangedMind(v === "true")} />
+                <ToggleGroup
+                  label={t("trial.changedMind")}
+                  value={changedMind === null ? null : String(changedMind)}
+                  options={["true", "false"]}
+                  labelFn={o => o === "true" ? t("trial.yes") : t("trial.no")}
+                  onChange={v => setChangedMind(v === "true")}
+                  error={missingChangedMind}
+                  errorMessage={requiredMessage}
+                />
               )}
 
-              <Button onClick={handleSubmit} disabled={!phase2FormComplete || isSubmitting} className="w-full h-10 rounded text-sm">
+              <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-10 rounded text-sm">
                 <Send className="w-4 h-4 mr-2" /> {t("trial.submitNext")}
               </Button>
             </>
@@ -335,10 +387,10 @@ const TrialScreen = () => {
   );
 };
 
-const SliderField = ({ label, value, onChange, minLabel, maxLabel }: { label: string; value: number | null; onChange: (v: number) => void; minLabel?: string; maxLabel?: string }) => (
-  <div className="space-y-2">
+const SliderField = ({ label, value, onChange, minLabel, maxLabel, error, errorMessage }: { label: string; value: number | null; onChange: (v: number) => void; minLabel?: string; maxLabel?: string; error?: boolean; errorMessage?: string }) => (
+  <div className={`space-y-2 ${error ? "rounded border border-destructive/50 p-2" : ""}`}>
     <div className="flex items-center justify-between">
-      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
+      <label className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</label>
       <span className="text-sm text-primary font-mono font-medium">{value === null ? "—" : `${value}%`}</span>
     </div>
       <Slider
@@ -355,12 +407,13 @@ const SliderField = ({ label, value, onChange, minLabel, maxLabel }: { label: st
         <span>{maxLabel}</span>
       </div>
     )}
+    {error && errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
   </div>
 );
 
-const ToggleGroup = ({ label, value, options, labelFn, onChange }: { label: string; value: string | null; options: string[]; labelFn: (o: string) => string; onChange: (v: string) => void }) => (
-  <div className="space-y-2">
-    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+const ToggleGroup = ({ label, value, options, labelFn, onChange, error, errorMessage }: { label: string; value: string | null; options: string[]; labelFn: (o: string) => string; onChange: (v: string) => void; error?: boolean; errorMessage?: string }) => (
+  <div className={`space-y-2 ${error ? "rounded border border-destructive/50 p-2" : ""}`}>
+    <p className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</p>
     <div className="flex gap-px bg-border rounded overflow-hidden">
       {options.map(opt => (
         <button
@@ -374,6 +427,7 @@ const ToggleGroup = ({ label, value, options, labelFn, onChange }: { label: stri
         </button>
       ))}
     </div>
+    {error && errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
   </div>
 );
 

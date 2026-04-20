@@ -48,7 +48,7 @@ const WelcomeScreen = () => {
     });
   };
 
-  const [time, setTime] = useState<number | null>(20);
+  const [time, setTime] = useState<number | null>(30);
   const [experience, setExperience] = useState("");
   const [ageRange, setAgeRange] = useState("");
   const [sex, setSex] = useState("");

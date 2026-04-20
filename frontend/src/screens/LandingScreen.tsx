@@ -77,8 +77,9 @@ const LandingScreen = () => {
                 <button
                   onClick={handleStart}
                   aria-label={t("landing.start")}
-                  className="group inline-flex items-center justify-center h-9 w-9 rounded bg-primary text-primary-foreground hover:brightness-110 transition-all shrink-0"
+                  className="group inline-flex items-center justify-center gap-2 h-9 w-9 sm:w-auto sm:px-4 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all shrink-0"
                 >
+                  <span className="hidden sm:inline">{t("landing.start")}</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
               </div>
