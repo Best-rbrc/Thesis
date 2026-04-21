@@ -291,6 +291,7 @@ const translations: Record<string, Record<Language, string>> = {
   "debrief.submit": { en: "Submit & Finish", de: "Absenden & Beenden" },
   "debrief.thanks": { en: "Thank You!", de: "Vielen Dank!" },
   "debrief.thanksMessage": { en: "Your responses have been recorded. Thank you for participating in this study.", de: "Deine Antworten wurden aufgezeichnet. Vielen Dank für die Teilnahme an dieser Studie." },
+  "debrief.shareHint": { en: "It would be a great help if you could share this study with your friends and colleagues!", de: "Es wäre eine große Hilfe, wenn du diese Studie mit deinen Freundinnen, Freunden oder Studienkollegen teilen könntest!" },
   // Findings
   "finding.cardiomegaly": { en: "Cardiomegaly", de: "Kardiomegalie" },
   "finding.cardiomegaly.desc": { en: "Enlarged heart silhouette", de: "Vergrößerte Herzsilhouette" },

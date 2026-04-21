@@ -72,7 +72,10 @@ const DebriefScreen = () => {
               <CheckCircle2 className="w-7 h-7 text-success" />
             </div>
             <h2 className="text-xl font-semibold text-foreground">{t("debrief.thanks")}</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">{t("debrief.thanksMessage")}</p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground leading-relaxed">{t("debrief.thanksMessage")}</p>
+              <p className="text-sm font-medium text-primary leading-relaxed">{t("debrief.shareHint")}</p>
+            </div>
 
             {/* Email opt-in */}
             <div className="border-t border-border pt-5 mt-5 space-y-3">
