@@ -691,13 +691,15 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
       const bonusStarted = s.mainCaseCount !== undefined;
       const inBonusSection = bonusStarted && nextIndex >= s.mainCaseCount!;
 
+      console.debug("[nextCase]", {
+        nextIndex, total: s.activeCases.length, bonusStarted, inBonusSection,
+        cpb: s.casesPerBlock, mainCaseCount: s.mainCaseCount, currentScreen: s.screen,
+      });
+
       if (nextIndex >= s.activeCases.length) {
-        if (bonusStarted) {
-          // Bonus cases finished → debrief
-          return { ...s, currentCaseIndex: nextIndex, screen: "debrief" as Screen, phase: 1 as const };
-        }
-        // Main cases done, no bonus yet → offer it
-        return { ...s, currentCaseIndex: nextIndex, screen: "bonus-offer" as Screen, phase: 1 as const };
+        const target = bonusStarted ? "debrief" : "bonus-offer";
+        console.debug("[nextCase] → all done, going to:", target);
+        return { ...s, currentCaseIndex: nextIndex, screen: target as Screen, phase: 1 as const };
       }
 
       // Skip block breaks for bonus cases
@@ -705,6 +707,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
         const caseInBlock = nextIndex % s.casesPerBlock;
         const newBlock = Math.floor(nextIndex / s.casesPerBlock) + 1;
         if (caseInBlock === 0 && nextIndex > 0) {
+          console.debug("[nextCase] → block-break at", nextIndex);
           return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, screen: "block-break" as Screen, phase: 1 as const };
         }
         return { ...s, currentCaseIndex: nextIndex, currentBlock: newBlock, phase: 1 as const };
