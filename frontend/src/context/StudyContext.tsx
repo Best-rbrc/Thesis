@@ -688,16 +688,15 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
   const nextCase = useCallback(() => {
     setState(s => {
       const nextIndex = s.currentCaseIndex + 1;
-      const mainCount = s.mainCaseCount ?? s.activeCases.length;
-      const inBonusSection = nextIndex >= mainCount;
+      const bonusStarted = s.mainCaseCount !== undefined;
+      const inBonusSection = bonusStarted && nextIndex >= s.mainCaseCount!;
 
       if (nextIndex >= s.activeCases.length) {
-        // All cases done (including any bonus)
-        if (inBonusSection || s.bonusCases.length > 0) {
-          // Bonus was accepted and is now finished
+        if (bonusStarted) {
+          // Bonus cases finished → debrief
           return { ...s, currentCaseIndex: nextIndex, screen: "debrief" as Screen, phase: 1 as const };
         }
-        // Main cases done, no bonus yet — offer it
+        // Main cases done, no bonus yet → offer it
         return { ...s, currentCaseIndex: nextIndex, screen: "bonus-offer" as Screen, phase: 1 as const };
       }
 
