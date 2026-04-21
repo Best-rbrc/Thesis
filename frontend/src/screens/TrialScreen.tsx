@@ -72,7 +72,12 @@ const TrialScreen = () => {
   };
 
 
-  if (!currentCase) return null;
+
+  if (!currentCase) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   const toggleFinding = (id: string, isPhase2: boolean) => {
     const setter = isPhase2 ? setRevisedFindings : setSelectedFindings;
