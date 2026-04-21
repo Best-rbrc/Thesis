@@ -35,6 +35,7 @@ const TrialScreen = () => {
   const phase2StartTime = useRef<number | null>(null);
   const bannerShowTime = useRef<number | null>(null);
   const [showConditionInfo, setShowConditionInfo] = useState(false);
+  const [showPhase1Errors, setShowPhase1Errors] = useState(false);
   const seenConditions = useRef<Set<string>>(seenConditionsGlobal);
 
   const isControl = currentCase?.condition === "A";
@@ -104,7 +105,6 @@ const TrialScreen = () => {
   const missingXaiHelpful = showPhase2Errors && showExplanations && xaiHelpful === null;
   const missingChangedMind = showPhase2Errors && showAI && changedMind === null;
 
-  const [showPhase1Errors, setShowPhase1Errors] = useState(false);
   const missingConfidence = showPhase1Errors && confidence === null;
 
   const handleLockIn = () => {
