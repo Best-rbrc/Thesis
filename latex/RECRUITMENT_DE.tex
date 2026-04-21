@@ -1,0 +1,115 @@
+% Recruitment flyer: compile with pdflatex RECRUITMENT_DE.tex
+% (twice if you change references; none here)
+
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=18mm,bottom=15mm,top=18mm]{geometry}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+% --- Palette (calm, clinical) ---
+\definecolor{accent}{HTML}{1a4d6e}
+\definecolor{accentlight}{HTML}{e8f0f5}
+\definecolor{textmuted}{HTML}{4a5568}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent,
+  urlcolor=accent,
+  pdfauthor={Benjamin Stieger},
+  pdftitle={Studie zur KI-gestützten Thorax-Röntgen-Diagnostik, Einladung zur Teilnahme}
+}
+
+% --- Section headings ---
+\titleformat{\section}
+  {\normalfont\bfseries\color{accent}\large}
+  {}
+  {0pt}
+  {}
+  [\vspace{-0.35em}{\color{accent}\rule{\linewidth}{0.6pt}}]
+
+\titlespacing*{\section}{0pt}{0.85em plus 0.15em minus 0.08em}{0.35em}
+
+\setcounter{secnumdepth}{-1}
+
+\setlist[itemize]{
+  leftmargin=1.2em,
+  itemsep=0.12em,
+  topsep=0.2em,
+  parsep=0pt,
+  label={\color{accent}\textbullet}
+}
+
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+\thispagestyle{empty}
+
+% --- Top rule + title block ---
+\noindent{\color{accent}\rule{\linewidth}{2.5pt}}\\[0.45em]
+{\LARGE\bfseries\color{accent}Studie zur KI-gestützten Thorax-Röntgen-Diagnostik}\\[0.35em]
+{\footnotesize\color{textmuted}\textsc{Einladung zur Teilnahme}: 
+\textit{Medizinstudierende \& Ärztinnen/Ärzte} \textbullet\ 
+\textit{20-45 Min} \textbullet\ 
+\textit{Online} \textbullet\ 
+\textit{Anonym}}
+
+\vspace{0.85em}
+
+\section{Worum geht es?}
+
+Eine Bachelorarbeit in Informatik, die untersucht, wie sich \textbf{KI-Diagnosetools auf klinische Entscheidungen auswirken}, wenn Thorax-Röntgenbilder befundet werden.
+
+KI hält zunehmend Einzug in die Radiologie, aber erstaunlicherweise ist wenig darüber bekannt, wie Ärztinnen und Ärzte in der Praxis tatsächlich damit interagieren. Führt die Vorhersage einer KI zu einer höheren Genauigkeit, oder werden Kliniker unbewusst in die falsche Richtung gelenkt? Schafft sie Vertrauen oder eine Überabhängigkeit? Dies sind offene und sehr wichtige Fragen, deren Beantwortung nicht nur Algorithmen, sondern echtes medizinisches Fachpersonal erfordert.
+
+In dieser Studie erhalten Medizinerinnen und Mediziner ein voll funktionsfähiges KI-Diagnosetool, um deren Interaktion damit zu beobachten. Die Ergebnisse werden direkt dazu beitragen, wie solche Tools im klinischen Alltag gestaltet und eingesetzt werden sollten – mit dem Ziel, die KI zu einem verlässlichen Partner zu machen, anstatt zu einer Quelle von Verwirrung oder Verzerrung (Bias).
+
+\section{Für wen ist die Studie?}
+
+\begin{itemize}
+  \item Medizinstudierende sowie Ärztinnen und Ärzte aller Fachrichtungen.
+  \item Keine Vorkenntnisse in der Radiologie erforderlich. Teilnehmerinnen und Teilnehmer aller Erfahrungsstufen sind willkommen, da unterschiedliche Erfahrungslevel wertvolle Erkenntnisse liefern. Auch ohne vorherige Erfahrung mit Röntgenbildern ist dein Beitrag sehr wertvoll – die Studie ist so aufgebaut, dass du jeden Fall mit deinem medizinischen Grundwissen und fachlichen Urteilsvermögen bearbeiten kannst.
+  \item Verfügbar auf \textbf{Deutsch und Englisch}.
+\end{itemize}
+
+\section{Wie läuft die Teilnahme ab?}
+
+Du befundest eine Reihe von echten frontalen Thorax-Röntgenbildern über ein einfaches browserbasiertes Tool (keine Installation erforderlich). Für jeden Fall gibst du deine klinische Einschätzung ab und beantwortest einige kurze Fragen. Das genaue Ziel der Studie wird am Ende erläutert. 
+
+Das Tool funktioniert auf mobilen Geräten und Computern, für eine optimale Bildbetrachtung wird jedoch ein \textbf{Computer empfohlen}.
+
+\section{Wie lange dauert es?}
+
+Du wählst dein Zeitbudget zu Beginn selbst: \textbf{\textasciitilde20, \textasciitilde30 oder \textasciitilde45 Minuten} (die genaue Dauer hängt von der individuellen Lesegeschwindigkeit ab). Die Sitzung kann jederzeit pausiert und später fortgesetzt werden.
+
+\section{Ist es anonym?}
+
+Ja. Es werden keine Namen oder persönlichen Daten erhoben. Die Teilnahme ist völlig freiwillig und kann jederzeit abgebrochen werden.
+
+\section{Wie kann ich teilnehmen?}
+
+Bitte besuche die Studienplattform unter folgendem Link:\\[0.25em]
+\url{https://www.benjaminstieger.com/chexstudy}\\[0.25em]
+Wenn du den Link öffnest, verwende bitte den Zugangscode \textbf{XR26!B8K9}, um auf die Plattform zuzugreifen.
+
+\vfill
+
+% --- Contact box ---
+\noindent\fcolorbox{accent}{accentlight}{%
+  \begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule}
+    \footnotesize
+    \textit{Für weitere Informationen oder bei Fragen zur Studie kontaktiere bitte:}\\[0.35em]
+    \textbf{Benjamin Stieger} \quad\textbullet\quad
+    \href{mailto:benjamin.stieger@student.unisg.ch}{\texttt{benjamin.stieger@student.unisg.ch}}\\[0.15em]
+    \textit{Universität St.\ Gallen, 2026}
+  \end{minipage}%
+}
+
+\end{document}

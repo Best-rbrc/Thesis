@@ -5,7 +5,7 @@ import SystemHeader from "@/components/SystemHeader";
 
 // Change this to update the access code given to participants.
 // Case-insensitive — participants can type it in any case.
-const STUDY_ACCESS_CODE = "CHEX2025";
+const STUDY_ACCESS_CODE = "XR26!B8K9";
 
 const LandingScreen = () => {
   const { setScreen, generateSessionCode, resumeSession, language, t } = useStudy();
@@ -60,9 +60,8 @@ const LandingScreen = () => {
             {/* Access code gate */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 w-full">
-                <div className={`flex flex-1 items-center gap-2 h-9 px-3 rounded border bg-secondary transition-shadow ${
-                  accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
-                }`}>
+                <div className={`flex flex-1 items-center gap-2 h-9 px-3 rounded border bg-secondary transition-shadow ${accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
+                  }`}>
                   <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <input
                     type="text"
@@ -114,9 +113,8 @@ const LandingScreen = () => {
                     onChange={e => { setResumeCode(e.target.value.toUpperCase()); setResumeError(false); }}
                     placeholder="Z.B. X4K9M2"
                     maxLength={6}
-                    className={`flex-1 h-9 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${
-                      resumeError ? "border-destructive" : "border-border"
-                    }`}
+                    className={`flex-1 h-9 px-3 rounded bg-secondary border text-base font-mono tracking-widest text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary transition-shadow uppercase ${resumeError ? "border-destructive" : "border-border"
+                      }`}
                   />
                   <button
                     onClick={handleResume}
