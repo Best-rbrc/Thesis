@@ -420,10 +420,13 @@ function insertAttentionCheck(cases: CaseData[], seed: string): CaseData[] {
   return result;
 }
 
+const detectLanguage = (): Language => 
+  typeof navigator !== "undefined" && navigator.language.startsWith("de") ? "de" : "en";
+
 export const StudyProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<StudyState>({
     screen: "landing",
-    language: "en",
+    language: detectLanguage(),
     sessionCode: "",
     userProfile: null,
     currentCaseIndex: 0,
@@ -540,7 +543,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
         
         setState({
           screen,
-          language: "en",
+          language: detectLanguage(),
           sessionCode: upperCode,
           userProfile: dbSession.experience_level ? {
             timeAvailable: dbSession.time_budget_min || 30,
