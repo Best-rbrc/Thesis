@@ -43,20 +43,33 @@ const TrialScreen = () => {
   const showExplanations = currentCase?.condition === "C" || currentCase?.condition === "D" || currentCase?.condition === "E";
   const showBias = currentCase?.condition === "D" && currentCase?.biasWarning;
 
-  // Show condition info modal only the first time each condition is encountered.
-  // Skip for attention-check cases — they have a hardcoded condition that may
-  // differ from the surrounding block.
-  // Clear the cache when a new session starts (same tab, different code).
+  // Clear the seen-conditions cache when a new session starts (same tab, different code).
   useEffect(() => {
     if (sessionCode && sessionCode !== lastSessionCode) {
       seenConditionsGlobal.clear();
       lastSessionCode = sessionCode;
     }
-    if (currentCase && !currentCase.isAttentionCheck && !seenConditions.current.has(currentCase.condition)) {
-      seenConditions.current.add(currentCase.condition);
-      setShowConditionInfo(true);
+  }, [sessionCode]);
+
+  // Show condition info modal the first time each condition is encountered.
+  // Reset on every case change so it doesn't carry over from a previous case.
+  // The condition is only marked as "seen" when the user dismisses the modal.
+  useEffect(() => {
+    if (!currentCase || currentCase.isAttentionCheck) {
+      setShowConditionInfo(false);
+      return;
     }
-  }, [currentCase, sessionCode]);
+    if (!seenConditions.current.has(currentCase.condition)) {
+      setShowConditionInfo(true);
+    } else {
+      setShowConditionInfo(false);
+    }
+  }, [currentCase]);
+
+  const dismissConditionInfo = () => {
+    if (currentCase) seenConditions.current.add(currentCase.condition);
+    setShowConditionInfo(false);
+  };
 
 
   if (!currentCase) return null;
@@ -183,7 +196,7 @@ const TrialScreen = () => {
             <p className="text-sm text-muted-foreground leading-relaxed">
               {t(`conditionInfo.${currentCase.condition}.desc`)}
             </p>
-            <Button onClick={() => setShowConditionInfo(false)} className="w-full h-10 rounded text-sm">
+            <Button onClick={dismissConditionInfo} className="w-full h-10 rounded text-sm">
               {t("conditionInfo.dismiss")}
             </Button>
           </div>
