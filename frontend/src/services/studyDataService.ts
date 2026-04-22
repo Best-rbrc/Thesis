@@ -16,7 +16,7 @@ export const studyDataService = {
   },
 
   async updateSessionProfile(sessionCode: string, profile: UserProfile, nCases: number, language?: string) {
-    withRetry("updateSessionProfile", async () => {
+    return withRetry("updateSessionProfile", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({
@@ -47,7 +47,7 @@ export const studyDataService = {
   },
 
   async updateSessionScreen(sessionCode: string, screen: string, caseIndex: number, block: number) {
-    withRetry("updateSessionScreen", async () => {
+    return withRetry("updateSessionScreen", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({ current_screen: screen, current_case_index: caseIndex, current_block: block })
@@ -57,7 +57,7 @@ export const studyDataService = {
   },
 
   async saveTrial(sessionCode: string, r: CaseResponse, trialType: string) {
-    withRetry("saveTrial", async () => {
+    return withRetry("saveTrial", async () => {
       const { data: session } = await supabase
         .from("study_sessions")
         .select("id")
@@ -95,7 +95,7 @@ export const studyDataService = {
   },
 
   async saveBlockSurvey(sessionCode: string, survey: BlockSurvey) {
-    withRetry("saveBlockSurvey", async () => {
+    return withRetry("saveBlockSurvey", async () => {
       const { data: session } = await supabase
         .from("study_sessions")
         .select("id")
@@ -119,7 +119,7 @@ export const studyDataService = {
   },
 
   async saveDebrief(sessionCode: string, postTrustItems: number[], comments: string) {
-    withRetry("saveDebrief", async () => {
+    return withRetry("saveDebrief", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({
@@ -133,7 +133,7 @@ export const studyDataService = {
   },
 
   async saveBaselineAccuracy(sessionCode: string, accuracy: number) {
-    withRetry("saveBaselineAccuracy", async () => {
+    return withRetry("saveBaselineAccuracy", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({ baseline_accuracy: accuracy })
@@ -143,7 +143,7 @@ export const studyDataService = {
   },
 
   async savePreTrustItems(sessionCode: string, items: number[]) {
-    withRetry("savePreTrustItems", async () => {
+    return withRetry("savePreTrustItems", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({ pre_trust_items: items })
@@ -153,7 +153,7 @@ export const studyDataService = {
   },
 
   async saveJianItemOrder(sessionCode: string, order: number[]) {
-    withRetry("saveJianItemOrder", async () => {
+    return withRetry("saveJianItemOrder", async () => {
       const { error } = await supabase
         .from("study_sessions")
         .update({ jian_item_order: order })
@@ -163,7 +163,7 @@ export const studyDataService = {
   },
 
   async saveEmailSubscription(email: string) {
-    withRetry("saveEmailSubscription", async () => {
+    return withRetry("saveEmailSubscription", async () => {
       const { error } = await supabase
         .from("study_email_subscriptions")
         .insert({ email });

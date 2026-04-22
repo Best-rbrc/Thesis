@@ -6,7 +6,7 @@ type QueuedOperation = {
 };
 
 const QUEUE_KEY = "chexstudy_retry_queue";
-let queue: QueuedOperation[] = [];
+const queue: QueuedOperation[] = [];
 let processing = false;
 
 async function processQueue() {
