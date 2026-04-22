@@ -12,7 +12,7 @@ const translations: Record<string, Record<Language, string>> = {
   "landing.headline": { en: "How does AI change the way we read chest X-rays?", de: "Wie verändert KI die Befundung von Röntgen-Thorax-Aufnahmen?" },
   "landing.description": { en: "Participate in a scientific study exploring how AI-generated predictions and visual explanations influence diagnostic decisions in radiology.", de: "Nimm an einer wissenschaftlichen Studie teil, die untersucht, wie KI-generierte Vorhersagen und visuelle Erklärungen diagnostische Entscheidungen in der Radiologie beeinflussen." },
   "landing.start": { en: "Start the Study", de: "Studie starten" },
-  "landing.duration": { en: "10–30 min", de: "10–30 Min." },
+  "landing.duration": { en: "20–40 min", de: "20–40 Min." },
   "landing.anonymous": { en: "Fully anonymous", de: "Vollständig anonym" },
   "landing.noAccount": { en: "No account needed", de: "Kein Konto nötig" },
   "landing.thesis": { en: "Bachelor's Thesis Research", de: "Forschung im Rahmen einer Bachelorarbeit" },
