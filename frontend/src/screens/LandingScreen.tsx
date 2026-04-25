@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ArrowRight, Clock, ShieldCheck, UserX, RotateCcw, KeyRound } from "lucide-react";
 import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
@@ -17,21 +17,29 @@ const LandingScreen = () => {
   const [accessCode, setAccessCode] = useState("");
   const [accessError, setAccessError] = useState(false);
 
+  const isRedditSource = useMemo(() => {
+    return new URLSearchParams(window.location.search).get("source") === "reddit";
+  }, []);
+
   const blurActiveInput = () => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
   const handleStart = () => {
-    const inputCode = accessCode.trim().toUpperCase();
     let cohortPrefix = "";
 
-    if (inputCode === STUDY_ACCESS_CODE_FRIENDS) {
-      cohortPrefix = "F";
-    } else if (inputCode === STUDY_ACCESS_CODE_REDDIT) {
+    if (isRedditSource) {
       cohortPrefix = "R";
     } else {
-      setAccessError(true);
-      return;
+      const inputCode = accessCode.trim().toUpperCase();
+      if (inputCode === STUDY_ACCESS_CODE_FRIENDS) {
+        cohortPrefix = "F";
+      } else if (inputCode === STUDY_ACCESS_CODE_REDDIT) {
+        cohortPrefix = "R";
+      } else {
+        setAccessError(true);
+        return;
+      }
     }
 
     blurActiveInput();
@@ -68,30 +76,40 @@ const LandingScreen = () => {
           <div className="flex flex-col gap-3 mb-8">
             {/* Access code gate */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 w-full">
-                <div className={`flex flex-1 items-center gap-2 h-9 px-3 rounded border bg-secondary transition-shadow ${accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
-                  }`}>
-                  <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <input
-                    type="text"
-                    value={accessCode}
-                    onChange={e => { setAccessCode(e.target.value); setAccessError(false); }}
-                    onKeyDown={e => e.key === "Enter" && handleStart()}
-                    placeholder={language === "en" ? "Access code" : "Zugangscode"}
-                    className="flex-1 min-h-0 bg-transparent text-base text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-                    autoComplete="off"
-                  />
+              {!isRedditSource ? (
+                <div className="flex items-center gap-2 w-full">
+                  <div className={`flex flex-1 items-center gap-2 h-9 px-3 rounded border bg-secondary transition-shadow ${accessError ? "border-destructive ring-1 ring-destructive" : "border-border focus-within:ring-1 focus-within:ring-primary"
+                    }`}>
+                    <KeyRound className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <input
+                      type="text"
+                      value={accessCode}
+                      onChange={e => { setAccessCode(e.target.value); setAccessError(false); }}
+                      onKeyDown={e => e.key === "Enter" && handleStart()}
+                      placeholder={language === "en" ? "Access code" : "Zugangscode"}
+                      className="flex-1 min-h-0 bg-transparent text-base text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <button
+                    onClick={handleStart}
+                    aria-label={t("landing.start")}
+                    className="group inline-flex items-center justify-center gap-2 h-9 w-9 sm:w-auto sm:px-4 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all shrink-0"
+                  >
+                    <span className="hidden sm:inline">{t("landing.start")}</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                  </button>
                 </div>
+              ) : (
                 <button
                   onClick={handleStart}
-                  aria-label={t("landing.start")}
-                  className="group inline-flex items-center justify-center gap-2 h-9 w-9 sm:w-auto sm:px-4 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all shrink-0"
+                  className="w-full group inline-flex items-center justify-center gap-2 h-10 px-4 rounded bg-primary text-primary-foreground text-sm font-medium hover:brightness-110 transition-all"
                 >
-                  <span className="hidden sm:inline">{t("landing.start")}</span>
+                  <span>{t("landing.start")}</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
-              </div>
-              {accessError && (
+              )}
+              {accessError && !isRedditSource && (
                 <p className="text-xs text-destructive pl-1">
                   {language === "en"
                     ? "Invalid access code. Please check and try again."
