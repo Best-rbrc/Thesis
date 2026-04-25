@@ -1,0 +1,115 @@
+% Recruitment flyer: compile with pdflatex RECRUITMENT.tex
+% (twice if you change references; none here)
+
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=20mm,bottom=18mm]{geometry}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+% --- Palette (calm, clinical) ---
+\definecolor{accent}{HTML}{1a4d6e}
+\definecolor{accentlight}{HTML}{e8f0f5}
+\definecolor{textmuted}{HTML}{4a5568}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent,
+  urlcolor=accent,
+  pdfauthor={Benjamin Stieger},
+  pdftitle={Study on AI-Assisted Chest X-Ray Diagnosis, Participant Invitation}
+}
+
+% --- Section headings ---
+\titleformat{\section}
+  {\normalfont\bfseries\color{accent}\large}
+  {}
+  {0pt}
+  {}
+  [\vspace{-0.35em}{\color{accent}\rule{\linewidth}{0.6pt}}]
+
+\titlespacing*{\section}{0pt}{1.05em plus 0.15em minus 0.08em}{0.45em}
+
+\setcounter{secnumdepth}{-1}
+
+\setlist[itemize]{
+  leftmargin=1.2em,
+  itemsep=0.12em,
+  topsep=0.2em,
+  parsep=0pt,
+  label={\color{accent}\textbullet}
+}
+
+\setlength{\parskip}{0.42em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+\thispagestyle{empty}
+
+% --- Top rule + title block ---
+\noindent{\color{accent}\rule{\linewidth}{2.5pt}}\\[0.45em]
+{\LARGE\bfseries\color{accent}Study on AI-Assisted Chest X-Ray Diagnosis}\\[0.35em]
+{\footnotesize\color{textmuted}\textsc{Participant invitation}: 
+\textit{Medical students \& doctors} \textbullet\ 
+\textit{20-45 min} \textbullet\ 
+\textit{Online} \textbullet\ 
+\textit{Anonymous}}
+
+\vspace{0.85em}
+
+\section{What is it?}
+
+A Bachelor's thesis study in Computer Science investigating how \textbf{AI diagnostic tools affect clinical decision-making} when reading chest X-rays.
+
+AI is already making its way into radiology, but surprisingly little is known about how doctors actually interact with it in practice. Does seeing an AI's prediction make clinicians more accurate, or does it subtly nudge them in the wrong direction? Does it build trust, or create overreliance? These are open and genuinely important questions, and answering them requires real clinicians, not just algorithms.
+
+This study puts a functional AI diagnostic tool in the hands of medical professionals and observes how they work with it. The findings will directly inform how such tools should be designed and deployed in clinical settings, with the goal of making AI a reliable partner for doctors rather than a source of confusion or bias.
+
+\section{Who is it for?}
+
+\begin{itemize}
+  \item Medical students or doctors of any specialty
+  \item No prior radiology expertise required. Participants at all experience levels are welcome, as varying levels of expertise provide valuable insight. Even with no prior X-ray experience, your contribution is genuinely valuable --- the study is designed so that you can work through every case using your medical knowledge and educated judgment
+  \item Available in \textbf{English and German}
+\end{itemize}
+
+\section{What does participation involve?}
+
+Participants review a series of real frontal chest X-ray images via a simple browser-based tool (no installation required). For each case they record their clinical assessment and answer a few short questions. The full study goal is explained at the end. 
+
+The tool works on mobile devices and computers, but a \textbf{computer is recommended} for optimal image viewing.
+
+\section{How long does it take?}
+
+Participants choose their own time budget at the start: \textbf{\textasciitilde20, \textasciitilde30, or \textasciitilde45 minutes} (exact duration depends on individual reading speed). The session can be paused and resumed at any time.
+
+\section{Is it anonymous?}
+
+Yes. No names or personal details are required. Participation is fully voluntary and can be stopped at any time.
+
+\section{How to access?}
+
+Please visit the study platform at the following link:\\[0.25em]
+\url{https://www.benjaminstieger.com/chexstudy}\\[0.25em]
+When you open the link, use the access code \textbf{REDDIT26} to enter the platform.
+
+\vfill
+
+% --- Contact box ---
+\noindent\fcolorbox{accent}{accentlight}{%
+  \begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule}
+    \footnotesize
+    \textit{For more information or questions about the study, please contact:}\\[0.35em]
+    \textbf{Benjamin Stieger} \quad\textbullet\quad
+    \href{mailto:benjamin.stieger@student.unisg.ch}{\texttt{benjamin.stieger@student.unisg.ch}}\\[0.15em]
+    \textit{University of St.\ Gallen, 2026}
+  \end{minipage}%
+}
+
+\end{document}

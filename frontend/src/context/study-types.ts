@@ -92,7 +92,7 @@ export interface StudyContextType extends StudyState {
   nextCase: () => void;
   initializeCases: (timeBudget: number) => void;
   initializeBonusCases: () => void;
-  generateSessionCode: () => string;
+  generateSessionCode: (cohortPrefix?: string) => string;
   resumeSession: (code: string) => Promise<boolean>;
   totalCases: number;
   progress: number;

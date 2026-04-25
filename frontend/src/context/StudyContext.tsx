@@ -359,10 +359,11 @@ const translations: Record<string, Record<Language, string>> = {
 const TIME_TO_CASES: Record<number, number> = { 20: 10, 30: 15, 40: 20 };
 const STORAGE_PREFIX = "chexstudy_";
 
-function makeCode(): string {
+function makeCode(prefix?: string): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  let code = prefix ? prefix : "";
+  const length = 6 - code.length;
+  for (let i = 0; i < length; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
 
@@ -481,8 +482,8 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     return translations[key]?.[state.language] ?? key;
   }, [state.language]);
 
-  const generateSessionCode = useCallback((): string => {
-    const code = makeCode();
+  const generateSessionCode = useCallback((cohortPrefix?: string): string => {
+    const code = makeCode(cohortPrefix);
     const sessionIndex = codeToSessionIndex(code);
     const jianOrder = generateJianOrder(code);
     setState(s => ({ ...s, sessionCode: code, sessionIndex, jianItemOrder: jianOrder }));

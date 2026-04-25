@@ -3,9 +3,10 @@ import { ArrowRight, Clock, ShieldCheck, UserX, RotateCcw, KeyRound } from "luci
 import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
 
-// Change this to update the access code given to participants.
+// Access codes for different participant cohorts
 // Case-insensitive — participants can type it in any case.
-const STUDY_ACCESS_CODE = "XR26!B8K9";
+const STUDY_ACCESS_CODE_FRIENDS = "XR26!B8K9"; // Starts session code with 'F'
+const STUDY_ACCESS_CODE_REDDIT = "REDDIT26"; // Starts session code with 'R'
 
 const LandingScreen = () => {
   const { setScreen, generateSessionCode, resumeSession, language, t } = useStudy();
@@ -21,12 +22,20 @@ const LandingScreen = () => {
   };
 
   const handleStart = () => {
-    if (accessCode.trim().toUpperCase() !== STUDY_ACCESS_CODE) {
+    const inputCode = accessCode.trim().toUpperCase();
+    let cohortPrefix = "";
+
+    if (inputCode === STUDY_ACCESS_CODE_FRIENDS) {
+      cohortPrefix = "F";
+    } else if (inputCode === STUDY_ACCESS_CODE_REDDIT) {
+      cohortPrefix = "R";
+    } else {
       setAccessError(true);
       return;
     }
+
     blurActiveInput();
-    generateSessionCode();
+    generateSessionCode(cohortPrefix);
     setScreen("consent");
   };
 
