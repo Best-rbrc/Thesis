@@ -38,11 +38,11 @@ const TrialScreen = () => {
   const [showPhase1Errors, setShowPhase1Errors] = useState(false);
   const seenConditions = useRef<Set<string>>(seenConditionsGlobal);
 
-  const isControl = currentCase?.condition === "A";
-  const showAIPredictions = currentCase?.condition === "B" || currentCase?.condition === "C" || currentCase?.condition === "D";
-  const showAI = currentCase?.condition !== "A"; // any non-control has phase 2
+  const isImmediate = currentCase?.condition === "A"; // A = AI shown from start, single phase
+  const showAIPredictions = currentCase?.condition === "A" || currentCase?.condition === "B" || currentCase?.condition === "C" || currentCase?.condition === "D";
+  const showAI = currentCase?.condition !== "A"; // B, C, D, E have phase 2 (legacy D still handled)
   const showExplanations = currentCase?.condition === "C" || currentCase?.condition === "D" || currentCase?.condition === "E";
-  const showBias = currentCase?.condition === "D" && currentCase?.biasWarning;
+  const showBias = (currentCase?.condition === "C" || currentCase?.condition === "D" || currentCase?.condition === "E") && currentCase?.biasWarning;
 
   // Clear the seen-conditions cache when a new session starts (same tab, different code).
   useEffect(() => {
@@ -114,7 +114,8 @@ const TrialScreen = () => {
       return;
     }
     setIsSubmitting(true);
-    if (isControl) {
+    if (isImmediate) {
+      // Condition A: AI visible from start, single-phase submit
       addResponse({
         caseId: currentCase.id, condition: currentCase.condition, category: currentCase.category,
         groundTruth: currentCase.groundTruth, aiPredictions: currentCase.aiPredictions,
@@ -307,6 +308,25 @@ const TrialScreen = () => {
           )}
           {phase === 1 ? (
             <>
+              {/* Condition A: show AI predictions in Phase 1 */}
+              {isImmediate && showAIPredictions && (
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t("trial.aiPredictions")}</h3>
+                  <div className="space-y-2.5">
+                    {currentCase.aiPredictions.map(pred => (
+                      <div key={pred.findingId} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-foreground">{t(`finding.${pred.findingId}`)}</span>
+                          <span className="text-primary font-mono text-xs">{pred.confidence}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                          <div className="h-full rounded-full bg-primary transition-all duration-700 ease-out" style={{ width: `${pred.confidence}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t("trial.selectFindings")}</h3>
                 <div className="space-y-2">
@@ -321,7 +341,7 @@ const TrialScreen = () => {
               <SliderField label={t("trial.confidence")} value={confidence} onChange={setConfidence} minLabel={t("trial.notConfident")} maxLabel={t("trial.veryConfident")} error={missingConfidence} errorMessage={requiredMessage} />
               <Button onClick={handleLockIn} disabled={selectedFindings.length === 0 || isSubmitting} className="w-full h-10 rounded text-sm">
                 <Lock className="w-4 h-4 mr-2" />
-                {isControl ? t("trial.submitAnswer") : t("trial.lockIn")}
+                {isImmediate ? t("trial.submitAnswer") : t("trial.lockIn")}
               </Button>
             </>
           ) : (

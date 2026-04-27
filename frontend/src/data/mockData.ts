@@ -623,9 +623,21 @@ export const CASE_POOL: CaseData[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Latin-square condition orderings (5 conditions × 5 rows)
+// Latin-square condition orderings — V2: 4 conditions × 4 rows (A, B, C, E)
+// A = AI shown immediately (single phase)
+// B = Phase 1 (unassisted) → Phase 2 (AI predictions, revise)
+// C = Phase 1 → Phase 2 (AI predictions + heatmaps + bias warnings)
+// E = Phase 1 → Phase 2 (heatmaps only)
 // ---------------------------------------------------------------------------
 export const LATIN_SQUARES: StudyCondition[][] = [
+  ["A", "B", "C", "E"],
+  ["B", "C", "E", "A"],
+  ["C", "E", "A", "B"],
+  ["E", "A", "B", "C"],
+];
+
+// Legacy 5-condition Latin square — used only when resuming old sessions.
+export const LATIN_SQUARES_V1: StudyCondition[][] = [
   ["A", "B", "C", "D", "E"],
   ["B", "C", "D", "E", "A"],
   ["C", "D", "E", "A", "B"],
@@ -663,21 +675,20 @@ const mk = (
   ...(bias ? { biasWarning: bias } : {}),
 });
 
-// FIXED_10 — positions 1–10
+// FIXED_10 — 10 cases across 3 blocks (~3-4 per block)
 const FIXED_10: CaseData[] = [
-  // Block 1 — easy cases
+  // Block 1 — easy + hard (4 cases)
   mk("fx-01", IMG.p37124, "easy", ["edema"],             ["edema"], [],                          "context.case02"),
   mk("fx-02", IMG.p00008, "easy", ["pleural_effusion"],  ["pleural_effusion"], [],               "context.case03",
      "⚠ AP image · Elderly patient (81M) · AP positioning may overestimate cardiac silhouette; model calibration for patients 80+ may be reduced"),
-  // Block 2 — hard cases
   mk("fx-03", IMG.p59546, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
      ["edema","pleural_effusion"], ["cardiomegaly","consolidation","atelectasis"],        "context.case05"),
+  // Block 2 — hard + incidental (3 cases)
   mk("fx-04", IMG.p31804, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
      ["cardiomegaly","edema","pleural_effusion"], ["consolidation","atelectasis"],        "context.case07",
      "⚠ AP (bedside) image · Elderly female patient (78F) · Cardiac size thresholds differ by sex; AP imaging reduces diagnostic quality compared to PA"),
-  // Block 3 — incidental pneumothorax (AI detects strongly)
   mk("fx-05", IMG.p05319, "incidental",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion","pneumothorax"],
      ["consolidation","pleural_effusion"], ["pneumothorax","cardiomegaly","edema","atelectasis"], "context.case13"),
@@ -685,13 +696,12 @@ const FIXED_10: CaseData[] = [
      ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
      ["edema","pleural_effusion"], ["pneumothorax","cardiomegaly","atelectasis"],         "context.case15",
      "⚠ AP image · Female patient (44F) · Pneumothorax is harder to detect on supine AP images; AI confidence for pneumothorax may be lower than on PA images"),
-  // Block 4 — easy + hard
+  // Block 3 — easy + hard + ai-wrong (4 cases)
   mk("fx-07", IMG.p34852, "easy", ["consolidation"], ["consolidation"], [],              "context.case04"),
   mk("fx-08", IMG.p38933, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
      ["cardiomegaly","pleural_effusion"], ["edema","consolidation","atelectasis"],        "context.case09",
      "⚠ AP (bedside) image · Patient age: 68 · Bedside imaging may reduce diagnostic quality"),
-  // Block 5 — AI-wrong (normal images, model over-flags)
   mk("fx-09", IMG.p00001, "ai_wrong", [], [], [],                                        "context.case21"),
   mk("fx-10", IMG.p00004, "ai_wrong", [], [], [],                                        "context.case23",
      "⚠ PA image · Young patient (20F) · AI may produce false positives on normal anatomy"),
@@ -750,34 +760,34 @@ const FIXED_20: CaseData[] = [
 // per session via generateBonusOrder().
 // ---------------------------------------------------------------------------
 export const BONUS_POOL: CaseData[] = [
-  // Condition A (no AI) — easy cardiomegaly
+  // Condition B (AI predictions) — easy cardiomegaly
   mk("bonus-01", IMG.p25997, "easy",
      ["cardiomegaly"], ["cardiomegaly"], [],
      "context.bonus01"),
-  // Condition B (AI predictions) — hard multi-finding
+  // Condition C (AI + heatmaps + bias) — hard multi-finding
   mk("bonus-02", IMG.p10140, "hard",
      ["cardiomegaly","edema","consolidation","atelectasis","pleural_effusion"],
      ["cardiomegaly","edema"], ["consolidation","atelectasis","pleural_effusion"],
      "context.bonus02"),
-  // Condition C (AI + heatmaps) — incidental ptx, AI strongly flags
+  // Condition E (heatmaps only) — incidental ptx, AI strongly flags
   mk("bonus-03", IMG.p15482, "incidental",
      ["cardiomegaly","edema","atelectasis","pleural_effusion","pneumothorax"],
      ["atelectasis","pleural_effusion"], ["pneumothorax","cardiomegaly","edema"],
      "context.bonus03"),
-  // Condition D (AI + heatmaps + bias) — AI-wrong, effusion FP
+  // Condition B — AI-wrong, effusion FP
   mk("bonus-04", IMG.p00023, "ai_wrong", [], [], [],
      "context.bonus04",
      "\u26A0 PA image \u00B7 Male, 63 \u00B7 AI may produce false positives for pleural effusion on this projection"),
-  // Condition E (heatmaps only) — incidental ptx, moderate AI detection
+  // Condition C (AI + heatmaps + bias) — incidental ptx, moderate AI detection
   mk("bonus-05", IMG.p41170, "incidental",
      ["edema","consolidation","atelectasis","pleural_effusion","pneumothorax"],
      ["edema","consolidation"], ["pneumothorax","atelectasis","pleural_effusion"],
      "context.bonus05"),
 ];
 
-// Assign fixed conditions A–E to the 5 bonus cases, then apply them.
+// Assign conditions A, B, C, E to the 5 bonus cases (cycling).
 function applyBonusConditions(cases: CaseData[]): CaseData[] {
-  const conditions: StudyCondition[] = ["A", "B", "C", "D", "E"];
+  const conditions: StudyCondition[] = ["A", "B", "C", "E", "A"];
   return cases.map((c, i) => ({ ...c, condition: conditions[i] }));
 }
 
@@ -801,10 +811,22 @@ export function generateBonusOrder(sessionCode: string): CaseData[] {
 // ---------------------------------------------------------------------------
 // generateCaseOrder — fixed-set Latin-square assignment.
 // All participants see the same images; only the condition per block rotates.
-// Block boundaries: positions [0, k), [k, 2k), ... where k = nCases/5.
+// Block boundaries: positions [0, k), [k, 2k), ... where k = nCases/4.
 // ---------------------------------------------------------------------------
 export function generateCaseOrder(sessionIndex: number, nCases: number): CaseData[] {
-  const conditionOrder = LATIN_SQUARES[sessionIndex % 5];
+  const conditionOrder = LATIN_SQUARES[sessionIndex % 4];
+  const pool = nCases <= 10 ? FIXED_10 : nCases <= 15 ? FIXED_15 : FIXED_20;
+  const casesPerBlock = Math.floor(pool.length / 4);
+
+  return pool.map((c, i) => ({
+    ...c,
+    condition: conditionOrder[Math.min(Math.floor(i / casesPerBlock), 3)],
+  }));
+}
+
+// Legacy generator for old sessions that used the 5-condition design.
+export function generateCaseOrderV1(sessionIndex: number, nCases: number): CaseData[] {
+  const conditionOrder = LATIN_SQUARES_V1[sessionIndex % 5];
   const pool = nCases <= 10 ? FIXED_10 : nCases <= 15 ? FIXED_15 : FIXED_20;
   const casesPerBlock = Math.floor(pool.length / 5);
 
@@ -815,7 +837,6 @@ export function generateCaseOrder(sessionIndex: number, nCases: number): CaseDat
 }
 
 // Number of condition blocks (= number of Latin-square conditions).
-// casesPerBlock = nCases / TOTAL_BLOCKS must equal the value used inside
-// generateCaseOrder (pool.length / 5) so that block-break screens align
-// exactly with condition boundaries.
-export const TOTAL_BLOCKS = 5;
+export const TOTAL_BLOCKS = 4;
+// Legacy block count for old sessions.
+export const TOTAL_BLOCKS_V1 = 5;

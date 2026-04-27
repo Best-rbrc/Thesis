@@ -6,11 +6,12 @@ It replaces the earlier aspirational plan and is intended to be used as the grou
 ## 1) Study Goal
 
 Evaluate how AI assistance affects chest X-ray decision-making across different UI conditions:
-- condition A: no AI assistance
-- condition B: AI confidence bars
-- condition C: AI confidence bars + explainability overlays
-- condition D: AI confidence bars + explainability overlays + bias warning banner
-- condition E: explainability overlays only (no numeric AI confidence bars)
+- condition A: AI predictions shown **immediately** (single-phase, no lock-in / revise)
+- condition B: AI confidence bars (two-phase: assess alone, then revise with AI)
+- condition C: AI confidence bars + explainability overlays + bias warnings (two-phase)
+- condition E: explainability overlays only, no numeric AI confidence bars (two-phase)
+
+> **V2 change (2026-04-27):** Reduced from 5 to 4 conditions. Old condition A (no AI) replaced by "AI immediate". Old condition D (C + bias) merged into C — bias warnings now always accompany heatmaps. See §14 for details.
 
 ## 2) Implemented Screen Flow
 
@@ -42,7 +43,7 @@ Notes:
 
 ## 3) Two-Stage Trial Protocol (Implemented)
 
-For non-control cases (`condition !== "A"`):
+For two-phase cases (`condition B, C, or E`):
 
 - Phase 1:
   - participant selects findings
@@ -56,20 +57,22 @@ For non-control cases (`condition !== "A"`):
   - participant self-reports whether answer changed
   - clicks "Submit & Next"
 
-For control cases (`condition === "A"`):
-- single-phase submission (no AI reveal step)
+For immediate cases (`condition === "A"`):
+- AI predictions are shown alongside the X-ray from the start
+- single-phase submission — participant sees AI, selects findings, sets confidence, and submits
 
 Captured timing:
 - `response_time_pre_ms`
-- `response_time_post_ms` (phase 2 only)
+- `response_time_post_ms` (phase 2 only, not present for condition A)
 
 ## 4) Condition Behavior in UI
 
-- **A**: no AI predictions, no overlays, no bias banner
-- **B**: AI prediction bars in phase 2
-- **C**: AI prediction bars + overlay switch (`original`, `gradcam`, `intgrad`)
-- **D**: same as C + dismissible bias warning banner
-- **E**: overlays only (no numeric AI bars), still phase-2 review
+- **A**: AI prediction bars shown **immediately in phase 1** — single-phase submit, no revision step
+- **B**: AI prediction bars in phase 2 (two-phase: lock-in → revise)
+- **C**: AI prediction bars + heatmap overlay switch (`original`, `gradcam`) + dismissible bias warning banner (when applicable)
+- **E**: heatmap overlays only (no numeric AI bars) + bias warnings (when applicable), still phase-2 review
+
+> Legacy condition **D** (AI + heatmaps + bias) may appear in old session data but is no longer assigned to new sessions.
 
 Condition explainer modal appears when condition changes.
 
@@ -101,7 +104,7 @@ Condition explainer modal appears when condition changes.
 
 ### Overall design: Within-subjects with Latin square counterbalancing
 
-The study uses a **within-subjects design** — every participant experiences all 5 conditions (A–E). To control for confounds, a **balanced Latin square** determines which condition is applied to which block of cases.
+The study uses a **within-subjects design** — every participant experiences all 4 conditions (A, B, C, E). To control for confounds, a **balanced Latin square** determines which condition is applied to which block of cases.
 
 **Key principle:** All participants who select the same time budget see the **exact same cases in the exact same order**. The only thing that changes between participants is **which condition each block of cases is shown under**.
 
@@ -115,7 +118,7 @@ Additionally, the Latin square controls for **order effects** (learning and fati
 
 ### Time budget mapping
 
-Configured mapping in code (values are multiples of 5 for clean Latin-square allocation):
+Configured mapping in code (values are clean for Latin-square allocation):
 - 20 min → `n_cases = 10`
 - 30 min → `n_cases = 15`
 - 40 min → `n_cases = 20`
@@ -126,75 +129,65 @@ All participants within the same time tier see the same fixed set of cases. Long
 
 | Tier | Cases | Set |
 |---|---|---|
-| 20 min | 10 cases (2 per block) | `FIXED_10` |
-| 30 min | 15 cases (3 per block) | `FIXED_15` = `FIXED_10` + 5 additional |
-| 40 min | 20 cases (4 per block) | `FIXED_20` = `FIXED_15` + 5 additional |
+| 20 min | 10 cases (~2-3 per block) | `FIXED_10` |
+| 30 min | 15 cases (~3-4 per block) | `FIXED_15` = `FIXED_10` + 5 additional |
+| 40 min | 20 cases (5 per block) | `FIXED_20` = `FIXED_15` + 5 additional |
 
-Case ordering within each fixed set is deterministic — it does **not** vary between participants. The cases are arranged to distribute category types (easy, hard, incidental, ai_wrong) across blocks:
+Case ordering within each fixed set is deterministic — it does **not** vary between participants. The cases are arranged to distribute category types (easy, hard, incidental, ai_wrong) across blocks.
 
-**FIXED_10 block layout:**
+### Latin square condition rotation (V2 — 4×4)
 
-| Block | Cases | Categories |
-|---|---|---|
-| Block 1 | fx-01, fx-02 | easy, easy |
-| Block 2 | fx-03, fx-04 | hard, hard |
-| Block 3 | fx-05, fx-06 | incidental, incidental |
-| Block 4 | fx-07, fx-08 | easy, hard |
-| Block 5 | fx-09, fx-10 | ai_wrong, ai_wrong |
+Each participant receives a `sessionIndex` (0–3), deterministically derived from their 6-character session code via a hash function (`codeToSessionIndex`, using `h % 4`). This index selects one row of the 4×4 Latin square:
 
-### Latin square condition rotation
+| sessionIndex | Block 1 | Block 2 | Block 3 | Block 4 |
+|:---:|:---:|:---:|:---:|:---:|
+| 0 | A | B | C | E |
+| 1 | B | C | E | A |
+| 2 | C | E | A | B |
+| 3 | E | A | B | C |
 
-Each participant receives a `sessionIndex` (0–4), deterministically derived from their 6-character session code via a hash function (`codeToSessionIndex`). This index selects one row of the 5×5 Latin square:
+**Concrete example (FIXED_10, Block 1 — cases fx-01 through fx-03):**
 
-| sessionIndex | Block 1 | Block 2 | Block 3 | Block 4 | Block 5 |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 | A | B | C | D | E |
-| 1 | B | C | D | E | A |
-| 2 | C | D | E | A | B |
-| 3 | D | E | A | B | C |
-| 4 | E | A | B | C | D |
-
-**Concrete example (FIXED_10, Block 1 — cases fx-01 and fx-02):**
-
-| Participant sessionIndex | Condition for fx-01 & fx-02 |
+| Participant sessionIndex | Condition for Block 1 cases |
 |:---:|:---|
-| 0 | **A** — No AI assistance |
-| 1 | **B** — AI prediction bars |
-| 2 | **C** — AI predictions + heatmaps |
-| 3 | **D** — AI + heatmaps + bias warnings |
-| 4 | **E** — Heatmaps only |
+| 0 | **A** — AI predictions shown immediately |
+| 1 | **B** — AI prediction bars (two-phase) |
+| 2 | **C** — AI predictions + heatmaps + bias warnings |
+| 3 | **E** — Heatmaps only |
 
-This means the same case (e.g., fx-01, an easy edema case) is evaluated without AI by some participants and with full AI+heatmaps+bias by others. Across all participants, every case appears under each of the 5 conditions with roughly equal frequency (~20% per condition, assuming uniform session code distribution).
+Across all participants, every case appears under each of the 4 conditions with roughly equal frequency (~25% per condition, assuming uniform session code distribution).
 
 ### Main-case generation
 
 `generateCaseOrder(sessionIndex, nCases)` performs the following:
 1. Selects the appropriate fixed pool (`FIXED_10`, `FIXED_15`, or `FIXED_20`) based on `nCases`
-2. Looks up the Latin square row for the given `sessionIndex`
-3. Computes `casesPerBlock = floor(pool.length / 5)`
+2. Looks up the Latin square row for the given `sessionIndex` (`sessionIndex % 4`)
+3. Computes `casesPerBlock = floor(pool.length / 4)`
 4. Assigns each case the condition from its block: `condition = conditionOrder[floor(i / casesPerBlock)]`
 5. Returns the full case list with conditions applied
 
 After `generateCaseOrder`, one attention-check case is inserted at a deterministic position (within the 20%–80% range, derived from the session code).
 
-### Block size and transitions
-- `casesPerBlock = floor(nCases / 5)`
-- Block-break survey screens appear after every `casesPerBlock` completed cases
-- 5 blocks total, aligned with the 5 Latin square conditions
+### Block-break survey frequency
+- Block-break surveys are **decoupled from condition blocks** — conditions still rotate in 4 blocks, but surveys appear less often:
+  - 10 cases (20 min): **1** block-break survey (after ~6 cases)
+  - 15 cases (30 min): **2** block-break surveys (after ~6 and ~12 cases)
+  - 20 cases (40 min): **2** block-break surveys (after ~7 and ~14 cases)
+- The survey interval accounts for the +1 attention check case inserted into the list
 
 ### Important implementation implications
 
-With `floor(nCases / 5)` and `nCases` always a multiple of 5:
-- 20-min path (`n_cases=10`) → 10 main (2 per condition) + 1 attention check = 11 displayed trial cases
-- 30-min path (`n_cases=15`) → 15 main (3 per condition) + 1 attention check = 16 displayed trial cases
-- 40-min path (`n_cases=20`) → 20 main (4 per condition) + 1 attention check = 21 displayed trial cases
+With `floor(nCases / 4)`:
+- 20-min path (`n_cases=10`) → 10 main (~2-3 per condition) + 1 attention check = 11 displayed trial cases
+- 30-min path (`n_cases=15`) → 15 main (~3-4 per condition) + 1 attention check = 16 displayed trial cases
+- 40-min path (`n_cases=20`) → 20 main (5 per condition) + 1 attention check = 21 displayed trial cases
 
 ### Analytical implications
 
 The counterbalanced design enables the following analytical approaches:
 - **Mixed-effects models** with participant and case as random effects, condition as fixed effect — the standard approach for within-subjects designs with counterbalancing
-- **Within-participant comparisons** across conditions (each participant provides data for all 5 conditions)
-- **Cross-participant comparisons** for the same case under different conditions (each case is seen under all 5 conditions across the full participant pool)
+- **Within-participant comparisons** across conditions (each participant provides data for all 4 conditions)
+- **Cross-participant comparisons** for the same case under different conditions (each case is seen under all 4 conditions across the full participant pool)
 - Case difficulty and participant ability are controlled for by the random effects structure, isolating the true condition effect
 
 ## 7) Data Persistence Model (Supabase)
@@ -334,8 +327,8 @@ All AI predictions shown to participants are the **actual Run 014 model sigmoid 
 
 ## 12) Current Known Deviations vs Original Plan
 
-1. The app currently includes **5 conditions (A-E)**, while earlier plans often described 4.
-2. `TIME_TO_CASES` values (10, 15, 20) are clean multiples of 5 so `generateCaseOrder` allocates exactly `nCases` main cases (2, 3, or 4 per condition).
+1. The app currently includes **4 conditions (A, B, C, E)** — reduced from 5 in V2. Old condition D is merged into C. See §14.
+2. `TIME_TO_CASES` values (10, 15, 20) are distributed across 4 blocks via `floor(nCases / 4)`.
 3. The study uses 6 target labels (5 core + Pneumothorax), expanded from the original 5 to support primary/incidental finding analysis.
 
 ## 13) Practical Run Checklist
@@ -353,6 +346,53 @@ Before running participants:
 - [ ] Verify resume by copying session code, leaving, and resuming
 - [ ] Verify all 13 study images + overlays are in `frontend/public/cases/`
 - [ ] Verify `mockData.ts` ground truths match CheXpert CSV labels
+
+---
+
+## 14) V2 Study Design Changes (2026-04-27)
+
+These changes were made to improve study completion rates and reduce participant burden.
+
+### Motivation
+
+Participant drop-off was observed during the study. Contributing factors:
+- Too many conditions (5) meant too many block-break surveys (4 surveys of 4 questions each)
+- Condition A (no AI at all) was redundant because the baseline task at the end of the study already captures unassisted performance
+- Condition D (C + bias warnings) added complexity without sufficient differentiation from C
+
+### Changes Made
+
+| Change | Before (V1) | After (V2) |
+|--------|-------------|------------|
+| **Conditions** | 5 (A, B, C, D, E) | 4 (A, B, C, E) |
+| **Condition A** | No AI (control) | AI predictions shown **immediately** (single phase) |
+| **Condition D** | AI + heatmaps + bias warnings | **Merged into C** — bias warnings now always accompany heatmaps |
+| **Blocks** | 5 | 4 |
+| **Block-break surveys** | 4 | 1 (short) or 2 (medium/long) |
+| **Latin square** | 5×5 | 4×4 |
+| **Session index** | `hash % 5` | `hash % 4` |
+| **Bias warnings** | Only shown in condition D | Shown in C and E (whenever a case has a `biasWarning`) |
+
+### Condition A — New Behavior
+
+Condition A now tests **anchoring by AI**: participants see AI predictions from the very start and make their assessment with AI output visible. This contrasts with B/C/E where participants form an initial opinion *before* seeing AI output (Phase 1 → Phase 2 flow).
+
+This is scientifically more interesting than the old "no AI" control because:
+- The baseline task at the end already measures unassisted performance
+- Condition A now captures whether seeing AI **from the start** (potential anchoring) produces different outcomes than seeing AI **after** forming an initial opinion (conditions B/C/E)
+
+### Backward Compatibility
+
+- **DB schema**: No changes. The `condition` column in `study_trials` is a text field; old values `"A"` (old meaning) and `"D"` remain valid historical data.
+- **Resuming old sessions**: The system detects legacy sessions by checking if any saved trial has `condition === "D"`. If so, it uses `generateCaseOrderV1()` (old 5-condition Latin square, 5 blocks) and `TOTAL_BLOCKS_V1 = 5` so the participant's remaining cases stay consistent with what they've already completed.
+- **New sessions**: Always use the V2 4-condition design.
+- **Bonus cases**: Updated to cycle through `[A, B, C, E, A]` instead of `[A, B, C, D, E]`.
+
+### Files Modified
+
+- `frontend/src/data/mockData.ts` — Latin squares, block counts, case generation, bonus conditions
+- `frontend/src/context/StudyContext.tsx` — session index hash, resume logic, condition translations
+- `frontend/src/screens/TrialScreen.tsx` — condition A now shows AI in Phase 1; bias warnings on C/E
 
 ---
 

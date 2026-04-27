@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from "react";
-import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, LATIN_SQUARES, generateCaseOrder, generateBonusOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
+import { BASELINE_CASES, CASE_POOL, TOTAL_BLOCKS, TOTAL_BLOCKS_V1, LATIN_SQUARES, generateCaseOrder, generateCaseOrderV1, generateBonusOrder, ATTENTION_CHECK_CASE, type CaseData } from "@/data/mockData";
 import { studyDataService } from "@/services/studyDataService";
 import { toast } from "sonner";
 import { StudyContext } from "./study-context";
@@ -222,16 +222,16 @@ const translations: Record<string, Record<Language, string>> = {
   "tutorial.step4.bias.title": { en: "Bias Warnings", de: "Verzerrungswarnungen" },
   "tutorial.step4.bias.desc": { en: "Amber banners may inform you about potential AI limitations for a specific case.", de: "Gelbe Banner können dich über mögliche KI-Einschränkungen für einen bestimmten Fall informieren." },
   // Condition info modals
-  "conditionInfo.A.title": { en: "No AI Assistance", de: "Ohne KI-Unterstützung" },
-  "conditionInfo.A.desc": { en: "In the following cases, you will assess chest X-rays entirely on your own. No AI predictions or visual aids will be shown. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen beurteilst du Röntgen-Thorax-Bilder vollständig eigenständig. Es werden keine KI-Vorhersagen oder visuelle Hilfen angezeigt. Jeder Fall enthält einen kurzen klinischen Kontext, der dir hilft, die Situation des Patienten besser zu verstehen." },
+  "conditionInfo.A.title": { en: "AI Predictions (Immediate)", de: "KI-Vorhersagen (Sofort)" },
+  "conditionInfo.A.desc": { en: "In the following cases, you will see the AI model's predictions alongside the X-ray from the start. Assess the image with the AI output visible and submit your findings. Each case includes a brief clinical context.", de: "In den folgenden Fällen siehst du die KI-Vorhersagen direkt neben dem Röntgenbild von Anfang an. Beurteile das Bild mit den sichtbaren KI-Ausgaben und reiche deine Befunde ein. Jeder Fall enthält einen kurzen klinischen Kontext." },
   "conditionInfo.B.title": { en: "AI Predictions", de: "KI-Vorhersagen" },
   "conditionInfo.B.desc": { en: "In the following cases, after locking in your initial assessment, you will see the AI model's predictions with confidence scores. You may then revise your answer. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen siehst du nach deiner ersten Beurteilung die KI-Vorhersagen mit Wahrscheinlichkeitswerten. Du kannst deine Antwort dann überarbeiten. Jeder Fall enthält einen kurzen klinischen Kontext, der dir hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.C.title": { en: "AI Predictions + Heatmaps", de: "KI-Vorhersagen + Heatmaps" },
-  "conditionInfo.C.desc": { en: "In the following cases, you will see AI predictions plus visual heatmaps showing where the model focuses. You may switch between overlay views. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen siehst du KI-Vorhersagen sowie visuelle Heatmaps, die zeigen, worauf das Modell achtet. Du kannst zwischen Overlay-Ansichten wechseln. Jeder Fall enthält einen kurzen klinischen Kontext, der dir hilft, die Situation des Patienten besser zu verstehen." },
+  "conditionInfo.C.desc": { en: "In the following cases, you will see AI predictions, visual heatmaps showing where the model focuses, and (where applicable) warnings about potential AI limitations. You may switch between overlay views. Each case includes a brief clinical context.", de: "In den folgenden Fällen siehst du KI-Vorhersagen, visuelle Heatmaps, die zeigen, worauf das Modell achtet, und (falls zutreffend) Warnungen zu möglichen KI-Einschränkungen. Du kannst zwischen Overlay-Ansichten wechseln. Jeder Fall enthält einen kurzen klinischen Kontext." },
   "conditionInfo.D.title": { en: "AI + Heatmaps + Bias Warnings", de: "KI + Heatmaps + Verzerrungswarnungen" },
   "conditionInfo.D.desc": { en: "In the following cases, you will see AI predictions, heatmaps, and (where applicable) a warning banner about potential AI limitations for the specific case. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen siehst du KI-Vorhersagen, Heatmaps und (falls zutreffend) eine Warnung zu möglichen KI-Einschränkungen für den jeweiligen Fall. Jeder Fall enthält einen kurzen klinischen Kontext, der dir hilft, die Situation des Patienten besser zu verstehen." },
   "conditionInfo.E.title": { en: "Heatmaps Only", de: "Nur Heatmaps" },
-  "conditionInfo.E.desc": { en: "In the following cases, you will see visual explanation heatmaps showing where the AI focuses, but no numeric predictions. You may then revise your answer. Each case includes a brief clinical context to help you better understand the patient's situation.", de: "In den folgenden Fällen siehst du visuelle Heatmaps, die zeigen, worauf die KI achtet, jedoch keine numerischen Vorhersagen. Du kannst deine Antwort dann überarbeiten. Jeder Fall enthält einen kurzen klinischen Kontext, der dir hilft, die Situation des Patienten besser zu verstehen." },
+  "conditionInfo.E.desc": { en: "In the following cases, you will see visual explanation heatmaps showing where the AI focuses, but no numeric predictions. You may then revise your answer. Each case includes a brief clinical context.", de: "In den folgenden Fällen siehst du visuelle Heatmaps, die zeigen, worauf die KI achtet, jedoch keine numerischen Vorhersagen. Du kannst deine Antwort dann überarbeiten. Jeder Fall enthält einen kurzen klinischen Kontext." },
   "conditionInfo.dismiss": { en: "Got it", de: "Verstanden" },
   // Trial
   "trial.case": { en: "Case", de: "Fall" },
@@ -402,12 +402,12 @@ function loadFromStorage(code: string): StudyState | null {
   } catch { return null; }
 }
 
-// Deterministic hash: maps a session code to one of 5 Latin-square rows (0–4).
+// Deterministic hash: maps a session code to one of 4 Latin-square rows (0–3).
 // Same code always produces the same index, giving ~uniform distribution.
 function codeToSessionIndex(code: string): number {
   let h = 0;
   for (const c of code) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return h % 5;
+  return h % 4;
 }
 
 // Attention check is placed at a deterministic position derived from the session
@@ -503,9 +503,18 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
         const nCases = dbSession.n_cases || 8;
         const sessionIdx = dbSession.session_index ?? codeToSessionIndex(upperCode);
-        const cases = generateCaseOrder(sessionIdx, nCases);
+
+        // Detect legacy sessions (created with the old 5-condition design)
+        const isLegacySession = dbTrials.some(t => t.condition === "D");
+        const cases = isLegacySession
+          ? generateCaseOrderV1(sessionIdx, nCases)
+          : generateCaseOrder(sessionIdx, nCases);
         const casesWithAttention = insertAttentionCheck(cases, upperCode);
-        const cpb = Math.floor(nCases / TOTAL_BLOCKS);
+        // Legacy sessions keep old break interval; new sessions use reduced breaks
+        const BREAK_INTERVAL: Record<number, number> = { 10: 6, 15: 6, 20: 7 };
+        const cpb = isLegacySession
+          ? Math.floor(nCases / TOTAL_BLOCKS_V1)
+          : (BREAK_INTERVAL[nCases] || Math.ceil((nCases + 1) / 3));
         const jianOrder = generateJianOrder(upperCode);
 
         const responses: CaseResponse[] = dbTrials
@@ -617,12 +626,19 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
   const setPhase = useCallback((phase: 1 | 2) => setState(s => ({ ...s, phase })), []);
 
+  // Block-break intervals: how many cases between each survey screen.
+  // Accounts for the +1 attention check case inserted into the list.
+  // 10+1=11 cases → cpb=6 → 1 break survey (at index 6)
+  // 15+1=16 cases → cpb=6 → 2 break surveys (at indices 6, 12)
+  // 20+1=21 cases → cpb=7 → 2 break surveys (at indices 7, 14)
+  const BREAK_INTERVAL: Record<number, number> = { 10: 6, 15: 6, 20: 7 };
+
   const initializeCases = useCallback((timeBudget: number) => {
     const nCases = TIME_TO_CASES[timeBudget] || 8;
     setState(s => {
       const cases = generateCaseOrder(s.sessionIndex, nCases);
       const casesWithAttention = insertAttentionCheck(cases, s.sessionCode);
-      const cpb = Math.floor(nCases / TOTAL_BLOCKS);
+      const cpb = BREAK_INTERVAL[nCases] || Math.ceil((nCases + 1) / 3);
       return { ...s, activeCases: casesWithAttention, casesPerBlock: cpb };
     });
   }, []);
