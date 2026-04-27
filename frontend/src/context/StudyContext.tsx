@@ -150,12 +150,12 @@ const translations: Record<string, Record<Language, string>> = {
   "aiTrain.workshop": { en: "Workshop / seminar", de: "Workshop / Seminar" },
   "aiTrain.course": { en: "University course", de: "Universitätskurs" },
   // Baseline
-  "baseline.title": { en: "Getting Familiar with the Viewer", de: "Den Viewer kennenlernen" },
-  "baseline.subtitle": { en: "Look at these 4 X-rays and select the findings you observe. There is no AI assistance.", de: "Schau dir diese 4 Röntgenbilder an und wähle die Befunde aus. Es gibt keine KI-Unterstützung." },
-  "baseline.case": { en: "Practice Case", de: "Übungsfall" },
+  "baseline.title": { en: "Final Task: Unassisted Assessment", de: "Letzte Aufgabe: Ununterstützte Beurteilung" },
+  "baseline.subtitle": { en: "Please assess these final 4 X-rays without AI assistance to help us establish a baseline.", de: "Bitte beurteile diese letzten 4 Röntgenbilder ohne KI-Unterstützung, um uns bei der Ermittlung eines Basiswerts zu helfen." },
+  "baseline.case": { en: "Baseline Case", de: "Baseline-Fall" },
   "baseline.submit": { en: "Submit", de: "Absenden" },
   "baseline.next": { en: "Next Case", de: "Nächster Fall" },
-  "baseline.finish": { en: "Continue to Survey", de: "Weiter zur Befragung" },
+  "baseline.finish": { en: "Continue", de: "Weiter" },
   // Pre-survey
   "presurvey.title": { en: "Attitudes Toward AI in Diagnosis", de: "Einstellung zu KI in der Diagnostik" },
   "presurvey.subtitle": { en: "Before you begin, please rate how much you agree with the following statements about AI-based diagnostic tools in general.", de: "Bevor du beginnst, bewerte bitte, inwieweit du den folgenden Aussagen über KI-basierte Diagnosewerkzeuge im Allgemeinen zustimmst." },
@@ -191,8 +191,8 @@ const translations: Record<string, Record<Language, string>> = {
   "ifTutorial.step2.title": { en: "Rating Your Confidence", de: "Sicherheit einschätzen" },
   "ifTutorial.step2.body": { en: "After selecting findings, use the slider to rate how confident you are. 0 means completely uncertain, 100 means completely certain.", de: "Nachdem du Befunde ausgewählt hast, gib mit dem Schieberegler an, wie sicher du dir bist. 0 bedeutet völlig unsicher, 100 bedeutet völlig sicher." },
   "ifTutorial.step2.label": { en: "Confidence", de: "Sicherheit" },
-  "ifTutorial.cta": { en: "Start Practice Cases", de: "Übungsfälle starten" },
-  "ifTutorial.hint": { en: "These 4 practice cases have no AI assistance — they capture your baseline performance.", de: "Diese 4 Übungsfälle enthalten keine KI-Unterstützung – sie erfassen deine Ausgangsleistung." },
+  "ifTutorial.cta": { en: "Continue to Survey", de: "Weiter zur Befragung" },
+  "ifTutorial.hint": { en: "The next steps will introduce the AI tools.", de: "Die nächsten Schritte stellen die KI-Tools vor." },
   // Tutorial
   "tutorial.next": { en: "Next", de: "Weiter" },
   "tutorial.back": { en: "Back", de: "Zurück" },
@@ -422,7 +422,7 @@ function insertAttentionCheck(cases: CaseData[], seed: string): CaseData[] {
   return result;
 }
 
-const detectLanguage = (): Language => 
+const detectLanguage = (): Language =>
   typeof navigator !== "undefined" && navigator.language.startsWith("de") ? "de" : "en";
 
 export const StudyProvider = ({ children }: { children: ReactNode }) => {
@@ -494,13 +494,13 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
 
   const resumeSession = useCallback(async (code: string): Promise<boolean> => {
     const upperCode = code.toUpperCase();
-    
+
     // Try database first
     try {
       const dbSession = await studyDataService.loadSession(upperCode);
       if (dbSession) {
         const dbTrials = await studyDataService.loadTrials(dbSession.id);
-        
+
         const nCases = dbSession.n_cases || 8;
         const sessionIdx = dbSession.session_index ?? codeToSessionIndex(upperCode);
         const cases = generateCaseOrder(sessionIdx, nCases);
@@ -542,7 +542,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
         // is re-oriented rather than stuck in an infinite resume loop.
         const rawScreen = (dbSession.current_screen as Screen) || "welcome";
         const screen: Screen = rawScreen === "landing" ? "welcome" : rawScreen;
-        
+
         setState({
           screen,
           language: detectLanguage(),
@@ -604,7 +604,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const setLanguage = useCallback((language: Language) => setState(s => ({ ...s, language })), []);
-  
+
   const setUserProfile = useCallback((userProfile: UserProfile) => {
     setState(s => {
       if (s.sessionCode) {
@@ -645,7 +645,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
     setState(s => {
       const trialType = r.category === "attention_check" ? "attention_check"
         : r.caseId.startsWith("bonus-") ? "bonus"
-        : "main";
+          : "main";
       if (s.sessionCode) studyDataService.saveTrial(s.sessionCode, r, trialType);
       return { ...s, responses: [...s.responses, r] };
     });
@@ -699,7 +699,7 @@ export const StudyProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (nextIndex >= s.activeCases.length) {
-        const target = bonusStarted ? "debrief" : "bonus-offer";
+        const target = bonusStarted ? (s.baselineResponses.length > 0 ? "debrief" : "baseline") : "bonus-offer";
         console.debug("[nextCase] → all done, going to:", target);
         return { ...s, currentCaseIndex: nextIndex, screen: target as Screen, phase: 1 as const };
       }

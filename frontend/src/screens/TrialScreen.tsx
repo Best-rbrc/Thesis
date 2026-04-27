@@ -181,8 +181,8 @@ const TrialScreen = () => {
   const overlayChipItems: { findingId: string; confidence?: number }[] = showAIPredictions
     ? [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)
     : FINDINGS.map(f => f.id)
-        .filter(id => !!gradcamByFinding[id])
-        .map(findingId => ({ findingId }));
+      .filter(id => !!gradcamByFinding[id])
+      .map(findingId => ({ findingId }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -258,11 +258,10 @@ const TrialScreen = () => {
                   <button
                     key={view}
                     onClick={() => setOverlayView(view)}
-                    className={`flex-1 min-h-[44px] lg:min-h-0 lg:py-2 px-2 flex items-center justify-center text-xs font-medium transition-colors ${
-                      overlayView === view
+                    className={`flex-1 min-h-[44px] lg:min-h-0 lg:py-2 px-2 flex items-center justify-center text-xs font-medium transition-colors ${overlayView === view
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     {t(`trial.overlay.${view}`)}
                   </button>
@@ -277,11 +276,10 @@ const TrialScreen = () => {
                   <button
                     key={item.findingId}
                     onClick={() => setSelectedOverlayFinding(item.findingId)}
-                    className={`shrink-0 snap-start min-h-[40px] sm:min-h-0 px-2.5 py-2 sm:py-1 rounded text-[11px] font-medium transition-colors border inline-flex items-center ${
-                      selectedOverlayFinding === item.findingId
+                    className={`shrink-0 snap-start min-h-[40px] sm:min-h-0 px-2.5 py-2 sm:py-1 rounded text-[11px] font-medium transition-colors border inline-flex items-center ${selectedOverlayFinding === item.findingId
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-secondary/50 text-muted-foreground border-border hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     {t(`finding.${item.findingId}`)}
                     {showAIPredictions && item.confidence !== undefined && (
@@ -423,14 +421,14 @@ const SliderField = ({ label, value, onChange, minLabel, maxLabel, error, errorM
       <label className={`text-xs font-semibold uppercase tracking-wider ${error ? "text-destructive" : "text-muted-foreground"}`}>{label}</label>
       <span className="text-sm text-primary font-mono font-medium">{value === null ? "— / 100%" : `${value}%`}</span>
     </div>
-      <Slider
-        value={[value ?? 50]}
-        min={0}
-        max={100}
-        step={1}
-        onValueChange={(vals) => onChange(vals[0] ?? 0)}
-        className="w-full"
-      />
+    <Slider
+      value={[value ?? 50]}
+      min={0}
+      max={100}
+      step={1}
+      onValueChange={(vals) => onChange(vals[0] ?? 0)}
+      className="w-full"
+    />
     {(minLabel || maxLabel) && (
       <div className="flex justify-between text-xs text-muted-foreground/60">
         <span>{minLabel}</span>
@@ -449,9 +447,8 @@ const ToggleGroup = ({ label, value, options, labelFn, onChange, error, errorMes
         <button
           key={opt}
           onClick={() => onChange(opt)}
-          className={`flex-1 h-8 text-xs font-medium transition-all ${
-            value === opt ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
-          }`}
+          className={`flex-1 h-8 text-xs font-medium transition-all ${value === opt ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
+            }`}
         >
           {labelFn(opt)}
         </button>

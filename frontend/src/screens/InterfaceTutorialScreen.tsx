@@ -297,7 +297,7 @@ const InterfaceTutorialScreen = () => {
             )}
             <button
               onClick={() =>
-                step < steps.length - 1 ? setStep(step + 1) : setScreen("baseline")
+                step < steps.length - 1 ? setStep(step + 1) : setScreen("pre-survey")
               }
               className="flex-1 h-9 rounded text-sm font-medium bg-primary text-primary-foreground hover:brightness-110 transition-all flex items-center justify-center gap-1"
             >

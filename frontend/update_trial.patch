@@ -1,0 +1,279 @@
+--- frontend/src/screens/TrialScreen.tsx
++++ frontend/src/screens/TrialScreen.tsx
+@@ -19,30 +19,25 @@
+ const TrialScreen = () => {
+-  const { currentCase, phase, setPhase, addResponse, nextCase, currentCaseIndex, totalCases, mainCaseCount, progress, currentBlock, language, t, sessionCode } = useStudy();
++  const { currentCase, addResponse, nextCase, currentCaseIndex, totalCases, mainCaseCount, progress, currentBlock, language, t, sessionCode } = useStudy();
+   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
+   const [confidence, setConfidence] = useState<number | null>(null);
+-  const [revisedFindings, setRevisedFindings] = useState<string[]>([]);
+-  const [revisedConfidence, setRevisedConfidence] = useState<number | null>(null);
+   /** Unset until the participant rates AI helpfulness (sliders default to 50 would otherwise skip intent). */
+   const [aiHelpful, setAiHelpful] = useState<number | null>(null);
+   const [overlayView, setOverlayView] = useState<OverlayView>("original");
+   const [selectedOverlayFinding, setSelectedOverlayFinding] = useState<string>("cardiomegaly");
+   const [biasAcknowledged, setBiasAcknowledged] = useState(false);
+   const [xaiFaithful, setXaiFaithful] = useState<string | null>(null);
+   const [xaiHelpful, setXaiHelpful] = useState<string | null>(null);
+-  const [changedMind, setChangedMind] = useState<boolean | null>(null);
+-  const [showPhase2Errors, setShowPhase2Errors] = useState(false);
++  const [showErrors, setShowErrors] = useState(false);
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const startTime = useRef(Date.now());
+-  const phase2StartTime = useRef<number | null>(null);
+   const bannerShowTime = useRef<number | null>(null);
+   const [showConditionInfo, setShowConditionInfo] = useState(false);
+-  const [showPhase1Errors, setShowPhase1Errors] = useState(false);
+   const seenConditions = useRef<Set<string>>(seenConditionsGlobal);
+ 
+   const isControl = currentCase?.condition === "A";
+   const showAIPredictions = currentCase?.condition === "B" || currentCase?.condition === "C" || currentCase?.condition === "D";
+   const showAI = currentCase?.condition !== "A"; // any non-control has phase 2
+   const showExplanations = currentCase?.condition === "C" || currentCase?.condition === "D" || currentCase?.condition === "E";
+   const showBias = currentCase?.condition === "D" && currentCase?.biasWarning;
+ 
+@@ -66,6 +61,16 @@
+     }
++
++    // When a new case loads, initialize the selected overlay finding and banner show time
++    if (currentCase) {
++      if (showBias) bannerShowTime.current = Date.now();
++      if (showAIPredictions) {
++        const topPred = [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)[0];
++        if (topPred) setSelectedOverlayFinding(topPred.findingId);
++      } else {
++        const firstNeutral = FINDINGS.map(f => f.id).find(id => currentCase.overlays?.gradcam?.[id]);
++        if (firstNeutral) setSelectedOverlayFinding(firstNeutral);
++      }
++    }
+   }, [currentCase]);
+ 
+   const dismissConditionInfo = () => {
+@@ -80,95 +85,53 @@
+   );
+ 
+-  const toggleFinding = (id: string, isPhase2: boolean) => {
+-    const setter = isPhase2 ? setRevisedFindings : setSelectedFindings;
+-    setter(prev => {
++  const toggleFinding = (id: string) => {
++    setSelectedFindings(prev => {
+       if (id === NO_FINDING_ID) return prev.includes(NO_FINDING_ID) ? [] : [NO_FINDING_ID];
+       const withoutNone = prev.filter(f => f !== NO_FINDING_ID);
+       return withoutNone.includes(id) ? withoutNone.filter(f => f !== id) : [...withoutNone, id];
+     });
+   };
+ 
+   const normalizedInitialFindings = selectedFindings.filter(id => id !== NO_FINDING_ID);
+-  const normalizedRevisedFindings = revisedFindings.filter(id => id !== NO_FINDING_ID);
+ 
+-  const phase2FormComplete =
+-    revisedFindings.length > 0 &&
+-    revisedConfidence !== null &&
+-    aiHelpful !== null &&
+-    (!showExplanations || (xaiFaithful != null && xaiHelpful != null)) &&
+-    (!showAI || changedMind !== null);
++  const formComplete =
++    selectedFindings.length > 0 &&
++    confidence !== null &&
++    (!showAI || aiHelpful !== null) &&
++    (!showExplanations || (xaiFaithful != null && xaiHelpful != null));
++
+   const requiredMessage = language === "de" ? "Bitte beantworten." : "Please answer this question.";
+-  const missingRevisedFindings = showPhase2Errors && revisedFindings.length === 0;
+-  const missingAiHelpful = showPhase2Errors && aiHelpful === null;
+-  const missingXaiFaithful = showPhase2Errors && showExplanations && xaiFaithful === null;
+-  const missingXaiHelpful = showPhase2Errors && showExplanations && xaiHelpful === null;
+-  const missingChangedMind = showPhase2Errors && showAI && changedMind === null;
+-
+-  const missingConfidence = showPhase1Errors && confidence === null;
+-
+-  const handleLockIn = () => {
+-    if (isSubmitting) return;
+-    if (confidence === null) {
+-      setShowPhase1Errors(true);
+-      return;
+-    }
+-    setIsSubmitting(true);
+-    if (isControl) {
+-      addResponse({
+-        caseId: currentCase.id, condition: currentCase.condition, category: currentCase.category,
+-        groundTruth: currentCase.groundTruth, aiPredictions: currentCase.aiPredictions,
+-        initialFindings: normalizedInitialFindings, initialConfidence: confidence,
+-        responseTimePreMs: Date.now() - startTime.current,
+-      });
+-      resetAndNext();
+-    } else {
+-      setRevisedFindings([...selectedFindings]);
+-      setRevisedConfidence(null);
+-      setShowPhase2Errors(false);
+-      phase2StartTime.current = Date.now();
+-      if (showBias) bannerShowTime.current = Date.now();
+-      if (showAIPredictions) {
+-        const topPred = [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)[0];
+-        if (topPred) setSelectedOverlayFinding(topPred.findingId);
+-      } else {
+-        const firstNeutral = FINDINGS.map(f => f.id).find(id => currentCase.overlays?.gradcam?.[id]);
+-        if (firstNeutral) setSelectedOverlayFinding(firstNeutral);
+-      }
+-      setPhase(2);
+-      setIsSubmitting(false);
+-    }
+-  };
++  const missingFindings = showErrors && selectedFindings.length === 0;
++  const missingConfidence = showErrors && confidence === null;
++  const missingAiHelpful = showErrors && showAI && aiHelpful === null;
++  const missingXaiFaithful = showErrors && showExplanations && xaiFaithful === null;
++  const missingXaiHelpful = showErrors && showExplanations && xaiHelpful === null;
+ 
+   const handleSubmit = () => {
+     if (isSubmitting) return;
+-    if (!phase2FormComplete) {
+-      setShowPhase2Errors(true);
++    if (!formComplete) {
++      setShowErrors(true);
+       return;
+     }
+     setIsSubmitting(true);
+-    const responseTimePostMs = phase2StartTime.current ? Date.now() - phase2StartTime.current : undefined;
+     const timeOnBannerMs = showBias && bannerShowTime.current && biasAcknowledged ? Date.now() - bannerShowTime.current : undefined;
+     addResponse({
+       caseId: currentCase.id, condition: currentCase.condition, category: currentCase.category,
+       groundTruth: currentCase.groundTruth, aiPredictions: currentCase.aiPredictions,
+       initialFindings: normalizedInitialFindings, initialConfidence: confidence!,
+-      revisedFindings: normalizedRevisedFindings, revisedConfidence: revisedConfidence!, aiHelpful: aiHelpful!,
++      aiHelpful: aiHelpful ?? undefined,
+       xaiHelpful: showExplanations ? (xaiHelpful as any) : undefined,
+       xaiFaithful: showExplanations ? (xaiFaithful as any) : undefined,
+       xaiViewSelected: showExplanations ? overlayView : undefined,
+       xaiOverlayFinding: showExplanations && overlayView !== "original" ? selectedOverlayFinding : undefined,
+-      changedMindSelfReport: changedMind ?? undefined,
+-      responseTimePreMs: phase2StartTime.current ? phase2StartTime.current - startTime.current : Date.now() - startTime.current,
+-      responseTimePostMs, biasBannerDismissed: showBias ? biasAcknowledged : undefined, timeOnBannerMs,
++      responseTimePreMs: Date.now() - startTime.current,
++      biasBannerDismissed: showBias ? biasAcknowledged : undefined, timeOnBannerMs,
+     });
+     resetAndNext();
+   };
+ 
+   const resetAndNext = () => {
+-    setSelectedFindings([]); setConfidence(null); setRevisedFindings([]); setRevisedConfidence(null);
+-    setAiHelpful(null); setOverlayView("original"); setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
+-    setXaiFaithful(null); setXaiHelpful(null); setChangedMind(null);
+-    setShowPhase1Errors(false); setShowPhase2Errors(false);
+-    startTime.current = Date.now(); phase2StartTime.current = null; bannerShowTime.current = null;
++    setSelectedFindings([]); setConfidence(null); setAiHelpful(null); setOverlayView("original"); 
++    setSelectedOverlayFinding("cardiomegaly"); setBiasAcknowledged(false);
++    setXaiFaithful(null); setXaiHelpful(null); setShowErrors(false);
++    startTime.current = Date.now(); bannerShowTime.current = null;
+     setIsSubmitting(false);
+     nextCase();
+   };
+ 
+-  const showOverlay = overlayView !== "original" && phase === 2;
++  const showOverlay = overlayView !== "original" && showExplanations;
+ 
+@@ -215,11 +178,11 @@
+         }
+         progress={progress}
+-        phaseLabel={phase === 1 ? t("trial.phase1") : t("trial.phase2")}
++        phaseLabel={t("trial.phase1")}
+       />
+ 
+       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+         {/* Image viewer */}
+         <div className="shrink-0 lg:flex-1 lg:min-h-0 bg-black/20 flex flex-col items-center justify-center p-4 sm:p-6 relative">
+-          {showBias && !biasAcknowledged && phase === 2 && (
++          {showBias && !biasAcknowledged && (
+             <div className="absolute top-3 left-3 right-3 bg-card border border-warning/30 rounded p-3 flex items-start gap-2 z-10 animate-fade-in">
+               <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+@@ -250,5 +213,5 @@
+ 
+-          {showExplanations && phase === 2 && (
++          {showExplanations && (
+             <div className="mt-3 space-y-2">
+               {/* XAI method toggle */}
+@@ -308,23 +271,7 @@
+             </div>
+           )}
+-          {phase === 1 ? (
+-            <>
+-              <div>
+-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t("trial.selectFindings")}</h3>
+-                <div className="space-y-2">
+-                  {FINDINGS.map(f => (
+-                    <StudyCheckbox key={f.id} checked={selectedFindings.includes(f.id)} onChange={() => toggleFinding(f.id, false)} label={t(`finding.${f.id}`)} description={t(`finding.${f.id}.desc`)} />
+-                  ))}
+-                  <div className="border-t border-border/50 pt-2">
+-                    <StudyCheckbox checked={selectedFindings.includes(NO_FINDING_ID)} onChange={() => toggleFinding(NO_FINDING_ID, false)} label={t("finding.none")} />
+-                  </div>
+-                </div>
+-              </div>
+-              <SliderField label={t("trial.confidence")} value={confidence} onChange={setConfidence} minLabel={t("trial.notConfident")} maxLabel={t("trial.veryConfident")} error={missingConfidence} errorMessage={requiredMessage} />
+-              <Button onClick={handleLockIn} disabled={selectedFindings.length === 0 || isSubmitting} className="w-full h-10 rounded text-sm">
+-                <Lock className="w-4 h-4 mr-2" />
+-                {isControl ? t("trial.submitAnswer") : t("trial.lockIn")}
+-              </Button>
+-            </>
+-          ) : (
+-            <>
++          
+               {showAIPredictions && (
+                 <div>
+@@ -347,19 +294,19 @@
+               )}
+ 
+-              <div className={`rounded ${missingRevisedFindings ? "border border-destructive/50 p-2" : ""}`}>
+-                <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${missingRevisedFindings ? "text-destructive" : "text-muted-foreground"}`}>{t("trial.revise")}</h3>
++              <div className={`rounded ${missingFindings ? "border border-destructive/50 p-2" : ""}`}>
++                <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${missingFindings ? "text-destructive" : "text-muted-foreground"}`}>{t("trial.selectFindings")}</h3>
+                 <div className="space-y-2">
+                   {FINDINGS.map(f => (
+-                    <StudyCheckbox key={f.id} checked={revisedFindings.includes(f.id)} onChange={() => toggleFinding(f.id, true)} label={t(`finding.${f.id}`)} />
++                    <StudyCheckbox key={f.id} checked={selectedFindings.includes(f.id)} onChange={() => toggleFinding(f.id)} label={t(`finding.${f.id}`)} description={t(`finding.${f.id}.desc`)} />
+                   ))}
+                   <div className="border-t border-border/50 pt-2">
+-                    <StudyCheckbox checked={revisedFindings.includes(NO_FINDING_ID)} onChange={() => toggleFinding(NO_FINDING_ID, true)} label={t("finding.none")} />
++                    <StudyCheckbox checked={selectedFindings.includes(NO_FINDING_ID)} onChange={() => toggleFinding(NO_FINDING_ID)} label={t("finding.none")} />
+                   </div>
+                 </div>
+-                {missingRevisedFindings && <p className="mt-2 text-xs text-destructive">{requiredMessage}</p>}
++                {missingFindings && <p className="mt-2 text-xs text-destructive">{requiredMessage}</p>}
+               </div>
+ 
+-              <SliderField label={t("trial.revisedConfidence")} value={revisedConfidence} onChange={setRevisedConfidence} error={showPhase2Errors && revisedConfidence === null} errorMessage={requiredMessage} />
+-              <SliderField
++              <SliderField label={t("trial.confidence")} value={confidence} onChange={setConfidence} error={missingConfidence} errorMessage={requiredMessage} minLabel={t("trial.notConfident")} maxLabel={t("trial.veryConfident")} />
++              
++              {showAI && (
++                <SliderField
+                 label={t("trial.aiHelpful")}
+@@ -370,5 +317,6 @@
+                 errorMessage={requiredMessage}
+               />
++              )}
+ 
+               {showExplanations && (
+                 <>
+@@ -395,19 +343,7 @@
+               )}
+ 
+-              {showAI && (
+-                <ToggleGroup
+-                  label={t("trial.changedMind")}
+-                  value={changedMind === null ? null : String(changedMind)}
+-                  options={["true", "false"]}
+-                  labelFn={o => o === "true" ? t("trial.yes") : t("trial.no")}
+-                  onChange={v => setChangedMind(v === "true")}
+-                  error={missingChangedMind}
+-                  errorMessage={requiredMessage}
+-                />
+-              )}
+-
+               <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-10 rounded text-sm">
+-                <Send className="w-4 h-4 mr-2" /> {t("trial.submitNext")}
++                <Send className="w-4 h-4 mr-2" /> {isControl ? t("trial.submitAnswer") : t("trial.submitNext")}
+               </Button>
+-            </>
+-          )}
+         </div>
+       </div>

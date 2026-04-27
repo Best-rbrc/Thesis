@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 const NO_FINDING_ID = "__no_finding__";
 
 const BaselineScreen = () => {
-  const { baselineCases, addBaselineResponse, setBaselineAccuracy, setScreen, t } = useStudy();
+  const { baselineCases, addBaselineResponse, setBaselineAccuracy, setScreen, t, responses } = useStudy();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedFindings, setSelectedFindings] = useState<string[]>([]);
   const [confidence, setConfidence] = useState<number | null>(null);
@@ -62,7 +62,7 @@ const BaselineScreen = () => {
     if (isLast) {
       const accuracy = totalLabels.current > 0 ? correctCounts.current / totalLabels.current : 0;
       setBaselineAccuracy(Math.round(accuracy * 100) / 100);
-      setScreen("pre-survey");
+      setScreen(responses.length > 0 ? "debrief" : "pre-survey");
     } else {
       setCurrentIdx(prev => prev + 1);
       setSelectedFindings([]);

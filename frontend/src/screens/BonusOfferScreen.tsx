@@ -3,7 +3,7 @@ import { useStudy } from "@/context/useStudy";
 import SystemHeader from "@/components/SystemHeader";
 
 const BonusOfferScreen = () => {
-  const { setScreen, initializeBonusCases, language, t } = useStudy();
+  const { setScreen, initializeBonusCases, language, t, baselineResponses } = useStudy();
 
   const handleAccept = () => {
     initializeBonusCases();
@@ -48,10 +48,10 @@ const BonusOfferScreen = () => {
               {language === "en" ? "Yes, I'll do a few more!" : "Ja, ich mache gerne noch ein paar!"}
             </button>
             <button
-              onClick={() => setScreen("debrief")}
+              onClick={() => setScreen(baselineResponses.length > 0 ? "debrief" : "baseline")}
               className="w-full h-9 rounded text-sm font-medium bg-secondary text-secondary-foreground hover:bg-accent transition-all flex items-center justify-center gap-2"
             >
-              {language === "en" ? "No thanks, go to final survey" : "Nein danke, zur Abschlussbefragung"}
+              {language === "en" ? "No thanks, continue" : "Nein danke, weiter"}
             </button>
           </div>
         </div>
