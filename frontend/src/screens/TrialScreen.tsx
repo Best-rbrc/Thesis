@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { Lock, Send, AlertTriangle, X, Info, MousePointerClick } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Lock, Send, AlertTriangle, X, Info, MousePointerClick, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStudy } from "@/context/useStudy";
 import { FINDINGS } from "@/data/mockData";
@@ -37,6 +37,14 @@ const TrialScreen = () => {
   const [showConditionInfo, setShowConditionInfo] = useState(false);
   const [showPhase1Errors, setShowPhase1Errors] = useState(false);
   const seenConditions = useRef<Set<string>>(seenConditionsGlobal);
+
+  // Zoom & pan state for X-ray image
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0 });
+  const panOffset = useRef({ x: 0, y: 0 });
+  const imgContainerRef = useRef<HTMLDivElement>(null);
 
   const isImmediate = currentCase?.condition === "A"; // A = AI shown from start, single phase
   const showAIPredictions = currentCase?.condition === "A" || currentCase?.condition === "B" || currentCase?.condition === "C" || currentCase?.condition === "D";
@@ -178,6 +186,44 @@ const TrialScreen = () => {
 
   const showOverlay = overlayView !== "original" && phase === 2;
 
+  // Reset zoom when case changes
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, [currentCase?.id]);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    setZoom(prev => {
+      const next = Math.max(1, Math.min(5, prev - e.deltaY * 0.002));
+      if (next === 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY };
+    panOffset.current = { ...pan };
+  }, [zoom, pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning.current) return;
+    setPan({
+      x: panOffset.current.x + (e.clientX - panStart.current.x),
+      y: panOffset.current.y + (e.clientY - panStart.current.y),
+    });
+  }, []);
+
+  const handleMouseUp = useCallback(() => { isPanning.current = false; }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
   const gradcamByFinding = currentCase.overlays?.gradcam ?? {};
   const overlayChipItems: { findingId: string; confidence?: number }[] = showAIPredictions
     ? [...currentCase.aiPredictions].sort((a, b) => b.confidence - a.confidence)
@@ -232,23 +278,53 @@ const TrialScreen = () => {
             </div>
           )}
 
-          <div className="relative w-full max-w-lg max-h-[min(85dvh,100vw)] aspect-square bg-black rounded overflow-hidden border border-border/50">
-            <img src={currentCase.imageUrl} alt={`Case ${currentCase.id}`} className="w-full h-full object-contain" />
-            {showOverlay && (() => {
-              const overlayUrl = currentCase.overlays?.[overlayView as "gradcam"]?.[selectedOverlayFinding];
-              return overlayUrl ? (
-                <img
-                  src={overlayUrl}
-                  alt={`${overlayView} overlay for ${selectedOverlayFinding}`}
-                  className="absolute inset-0 w-full h-full object-contain"
-                  style={{ mixBlendMode: "screen", opacity: 0.85 }}
-                />
-              ) : null;
-            })()}
+          <div
+            ref={imgContainerRef}
+            className="relative w-full max-w-lg max-h-[min(85dvh,100vw)] aspect-square bg-black rounded overflow-hidden border border-border/50 select-none"
+            style={{ cursor: zoom > 1 ? 'grab' : 'zoom-in' }}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onDoubleClick={handleDoubleClick}
+          >
+            <div
+              className="w-full h-full"
+              style={{
+                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                transformOrigin: 'center center',
+                transition: isPanning.current ? 'none' : 'transform 0.15s ease-out',
+              }}
+            >
+              <img src={currentCase.imageUrl} alt={`Case ${currentCase.id}`} className="w-full h-full object-contain" draggable={false} />
+              {showOverlay && (() => {
+                const overlayUrl = currentCase.overlays?.[overlayView as "gradcam"]?.[selectedOverlayFinding];
+                return overlayUrl ? (
+                  <img
+                    src={overlayUrl}
+                    alt={`${overlayView} overlay for ${selectedOverlayFinding}`}
+                    className="absolute inset-0 w-full h-full object-contain"
+                    style={{ mixBlendMode: "screen", opacity: 0.85 }}
+                    draggable={false}
+                  />
+                ) : null;
+              })()}
+            </div>
             <div className="absolute top-2 left-2 text-[10px] text-muted-foreground/40 font-mono leading-tight">
               <div>CASE {String(currentCaseIndex + 1).padStart(3, "0")}</div>
               <div>BLOCK {currentBlock}</div>
             </div>
+            {zoom > 1 && (
+              <div className="absolute bottom-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white/70 font-mono">
+                {zoom.toFixed(1)}×
+              </div>
+            )}
+            {zoom === 1 && (
+              <div className="absolute bottom-2 right-2 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-black/50 text-white/40">
+                <ZoomIn className="w-3 h-3" /> scroll
+              </div>
+            )}
           </div>
 
           {showExplanations && phase === 2 && (
