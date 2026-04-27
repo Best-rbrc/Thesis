@@ -145,6 +145,7 @@ const TrialScreen = () => {
         if (firstNeutral) setSelectedOverlayFinding(firstNeutral);
       }
       setPhase(2);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSubmitting(false);
     }
   };
